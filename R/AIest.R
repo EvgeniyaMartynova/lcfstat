@@ -1,5 +1,40 @@
 
-AIest <- function(pp, correction="Ripley", dim=NULL, dim_lims=NULL, dr=NULL, ...) {
+#' Attraction Index
+#'
+#' @param pp The observed point pattern, from which an estimate of AI(r) will be computed.
+#' An object of class "ppp", or data in any format acceptable to as.ppp().
+#' @param correction Optional. A character vector containing one and only one of
+#' the options "none", "border", "bord.modif", "isotropic", "Ripley", "translate",
+#' "translation", "rigid", "none", "periodic", "good" or "best".
+#' It specifies the edge correction to be applied. Note that the option "all"
+#' or providing multiple edge correction methods is not supported due to
+#' performance reasons. Defaults to "Ripley".
+#' @param dim Optional. The dimension of the basis used to represent the smooth term within
+#' the scam model formula. If not provided, the rule of thumb is used, i.e.
+#' dim = sqrt(number of points).
+#' @param dim_lims Optional. The integer vector with 2 values: the lower and
+#' upper limits of the possible value of dim, c(lower, upper). lower > upper
+#' is not allowed.
+#' @param dr Optional. The delta r to compute the derivative of the estimated
+#' number of points. If not provided a rule of thumb is supplied, i.e. 1/5 of
+#' the distance between subsequent r values in the K-function estimate is used.
+#' @param rmax Optional. Maximum desired value of the argument.
+#' @param nlarge Optional. Efficiency threshold. If the number of points exceeds
+#' nlarge, then only the border correction will be computed (by default),
+#' using a fast algorithm.
+#'
+#' @return An object of class "fv", see fv.object, which can be plotted directly using plot.fv.
+#' @export
+#'
+#' @examples
+#' #TBD
+AIest <- function(pp,
+                  correction="Ripley",
+                  dim=NULL,
+                  dim_lims=NULL,
+                  dr=NULL,
+                  rmax=NULL,
+                  nlarge=3000) {
 
   # For now override the correction argument and allow only a single char
   # value due to performance reasons
@@ -19,7 +54,10 @@ AIest <- function(pp, correction="Ripley", dim=NULL, dim_lims=NULL, dr=NULL, ...
                  choose a single option")
   }
 
-  k_est <- spatstat.explore::Kest(pp, correction = correction, ...)
+  k_est <- spatstat.explore::Kest(pp,
+                                  correction = correction,
+                                  rmax=rmax,
+                                  nlarge=nlarge)
   k_est_df <- as.data.frame(k_est)
 
   intensity <- pp$n / spatstat.geom::area(pp$window)
@@ -47,7 +85,7 @@ AIest <- function(pp, correction="Ripley", dim=NULL, dim_lims=NULL, dr=NULL, ...
 
   # Smooth a non zero part of the function
   r_arg <- pn_est_non_zero$r[2:nrow(pn_est_non_zero)]
-  pn_smoothed <- predict(model, newdata=list(r=r_arg))
+  pn_smoothed <- stats::predict(model, newdata=list(r=r_arg))
   pn_deriv <- deriv_func(r_arg)
   # Workaround when getting a small negative derivative
   pn_deriv <- dplyr::if_else(pn_deriv >= 0, pn_deriv, 0)
@@ -56,22 +94,19 @@ AIest <- function(pp, correction="Ripley", dim=NULL, dim_lims=NULL, dr=NULL, ...
   # and the smoothed part
   pn <- c(rep(0, first_non_zero_ind), pn_smoothed)
   pn_deriv <- c(rep(0, first_non_zero_ind), pn_deriv)
+  r <- k_est_df$r
+  ai <- dplyr::if_else(pn > 0 & pn_deriv >= 0,
+                       exp(-log(2) / 2 * r * pn_deriv / pn) * 2 - 1,
+                       -1)
 
-  ai_tib <- tibble::tibble(pn=pn,
-                           pn_deriv=pn_deriv,
-                           r=k_est_df$r,
+  ai_tib <- tibble::tibble(r=k_est_df$r,
                            theo=0)
-
-  # TODO: change `ai` to border correction method name
+  # Name the column with AI estimate after the used border correction method
   correction_name <- colnames(k_est_df)[3]
-  ai_tib <- dplyr::mutate(ai_tib, ai = dplyr::if_else(pn > 0 & pn_deriv >= 0,
-                                                      exp(-log(2) / 2 * r * pn_deriv / pn) * 2 - 1,
-                                                      -1))
+  ai_tib[correction_name] <- ai
 
   # TODO: make an object of a class `fv`
-  ai_tib <- ai_tib[c("r", "theo", "ai")]
-
-  return(ai_tib)
+  ai_tib
 }
 
 
@@ -79,11 +114,11 @@ approx_deriv <- function(x, y_model, dx) {
   # For now compute derivative with finite diff method, central diff
   # Then perhaps improve
   x_breaks <- seq(min(x) + dx / 2, max(x) + dx / 2, dx)
-  y_smoothed <- predict(y_model, newdata=list(r=x_breaks))
+  y_smoothed <- stats::predict(y_model, newdata=list(r=x_breaks))
 
   y_deriv_num <- diff(y_smoothed) / dx
   x_data <- x_breaks + dx / 2
-  deriv_formula <- approxfun(x_data[1:(length(x_data) - 1)], y_deriv_num)
+  deriv_formula <- stats::approxfun(x_data[1:(length(x_data) - 1)], y_deriv_num)
 
   deriv_formula
 }
