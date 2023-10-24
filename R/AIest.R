@@ -58,12 +58,12 @@ AIest <- function(pp,
                                   correction = correction,
                                   rmax=rmax,
                                   nlarge=nlarge)
-  k_est_df <- as.data.frame(k_est)
 
   intensity <- pp$n / spatstat.geom::area(pp$window)
-  k_est_df$pn <- intensity * k_est_df[[3]]
+  pn <- intensity * k_est[[3]]
 
-  pn_est_df <- k_est_df[c("r", "pn")]
+  pn_est_df <- data.frame(r=k_est$r,
+                          pn=pn)
 
   # Estimated number of points is treated as a piece-wise function
   # that equals to 0 until the closest distance between points is reached
@@ -77,7 +77,7 @@ AIest <- function(pp,
   }
 
   if (is.null(dr)) {
-    dr <- k_est_df$r[2] / 5
+    dr <- k_est$r[2] / 5
   }
 
   model <- scam::scam(pn ~ s(r, k=dim, bs='mpi'), data=pn_est_non_zero)
@@ -94,19 +94,23 @@ AIest <- function(pp,
   # and the smoothed part
   pn <- c(rep(0, first_non_zero_ind), pn_smoothed)
   pn_deriv <- c(rep(0, first_non_zero_ind), pn_deriv)
-  r <- k_est_df$r
+  r <- k_est$r
   ai <- dplyr::if_else(pn > 0 & pn_deriv >= 0,
-                       exp(-log(2) / 2 * r * pn_deriv / pn) * 2 - 1,
+                       compute_ai(r, pn, pn_deriv),
                        -1)
 
-  ai_tib <- tibble::tibble(r=k_est_df$r,
-                           theo=0)
+  ai_df <- data.frame(r=k_est$r,
+                       theo=0)
   # Name the column with AI estimate after the used border correction method
-  correction_name <- colnames(k_est_df)[3]
-  ai_tib[correction_name] <- ai
+  correction_name <- colnames(k_est)[3]
+  ai_df[correction_name] <- ai
 
-  # TODO: make an object of a class `fv`
-  ai_tib
+  ai_fv <- spatstat.explore::fv(ai_df, valu=correction_name, fname="AI", fmla = ".~r",
+                                ylab=quote(AI(r)), yexp=quote(AI(r)),
+                                labl=attr(k_est, "labl"),
+                                desc = attr(k_est, "desc"))
+
+  ai_fv
 }
 
 
@@ -145,3 +149,9 @@ choose_basis_dim <- function(sample_size, dim_lims=NULL) {
 }
 
 
+compute_ai <- function(r, pn, pn_deriv, low=-1, high=1) {
+  scale <- high - low
+  shift <- low
+  ai <- exp(-log(2) / 2 * r * pn_deriv / pn) * scale + shift
+  ai
+}
