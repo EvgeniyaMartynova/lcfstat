@@ -9,7 +9,6 @@ AIest(
   correction = "Ripley",
   dim = NULL,
   dim_lims = NULL,
-  dr = NULL,
   rmax = NULL,
   nlarge = 3000
 )
@@ -33,10 +32,6 @@ dim = sqrt(number of points).}
 upper limits of the possible value of dim, c(lower, upper). lower > upper
 is not allowed.}
 
-\item{dr}{Optional. The delta r to compute the derivative of the estimated
-number of points. If not provided a rule of thumb is supplied, i.e. 1/5 of
-the distance between subsequent r values in the K-function estimate is used.}
-
 \item{rmax}{Optional. Maximum desired value of the argument.}
 
 \item{nlarge}{Optional. Efficiency threshold. If the number of points exceeds
@@ -44,11 +39,44 @@ nlarge, then only the border correction will be computed (by default),
 using a fast algorithm.}
 }
 \value{
-An object of class "fv", see fv.object, which can be plotted directly using plot.fv.
+An object of class "aifv", inherited from fv.object, which can be
+plotted directly using plot.aifv.
 }
 \description{
-Attraction Index
+Estimates the Attraction Index function from a point pattern in a window of arbitrary shape.
 }
 \examples{
-#TBD
+
+library(spatstat.random)
+
+# AI for a random point pattern
+rpp <- rpoispp(500)
+
+ai_rand <- AIest(rpp)
+plot(ai_rand, main = "AI for a random point pattern")
+
+ai <- AIest(rpp, "border")
+plot(ai, main = "AI for a random point pattern")
+
+# AI for a clustered point pattern
+clust_pp <- rMatClust(20, 0.05, 25)
+
+ai_clust <- AIest(clust_pp)
+plot(ai_clust, main = "AI for a clustered point pattern")
+
+# AI for a point pattern with dispersion
+hardcore_pp <- rHardcore(300, R=0.05)
+ai_disp <- AIest(hardcore_pp)
+plot(ai_disp, main = "AI for a point pattern with dispersion")
+
+# Plot AI for three different point pattern together
+plot(ai_rand$r, ai_rand$iso, type="l", ylim=c(-1, 1), col=4)
+lines(ai_rand$r, rep(0, nrow(ai_rand)), lty=2)
+lines(ai_clust$r, ai_clust$iso, col=2)
+lines(ai_disp$r, ai_disp$iso, col=7)
+legend("bottomright",
+       c("theoretical", "random", "clustered", "dispersed"),
+       col=c(1, 4, 2, 7),
+       lty=c(2, 1, 1, 1))
+
 }
