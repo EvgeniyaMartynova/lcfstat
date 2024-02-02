@@ -4,13 +4,16 @@
 \alias{plot.aifv}
 \title{Plot Function Value for AI}
 \usage{
-\method{plot}{aifv}(x, main = "", ...)
+\method{plot}{aifv}(x, ylim = c(-1, 1), main = "", ...)
 }
 \arguments{
 \item{x}{An object of the class "aifv" that contains the variables to be
 plotted.}
 
-\item{main}{A title of the plot.}
+\item{ylim}{(optional) range of y axis. Default is set to the lower and
+upper limits of the AI.}
+
+\item{main}{(optional) A title of the plot.}
 
 \item{...}{Extra arguments passed to the spatstat.explore::plot.fv}
 }

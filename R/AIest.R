@@ -2,14 +2,18 @@
 #'
 #'Estimates the Attraction Index function from a point pattern in a window of arbitrary shape.
 #'
-#' @param pp The observed point pattern, from which an estimate of AI(r) will be computed.
-#' An object of class "ppp", or data in any format acceptable to as.ppp().
+#' @param pp The observed point pattern, from which an estimate of AI(r) will be computed
+#' or N(r) estimate. In case of the point pattern, it should be an object of class "ppp",
+#' or data in any format acceptable to as.ppp(). For N(r), a data frame with columns
+#' "r" (distance) and "pn" (estimated number of points)
 #' @param correction Optional. A character vector containing one and only one of
 #' the options "none", "border", "bord.modif", "isotropic", "Ripley", "translate",
 #' "translation", "rigid", "none", "periodic", "good" or "best".
 #' It specifies the edge correction to be applied. Note that the option "all"
 #' or providing multiple edge correction methods is not supported due to
 #' performance reasons. Defaults to "Ripley".
+#' @param r Optional. Vector of values for the argument r at which AI(r)
+#' should be evaluated. The values must be in increasing order. Advanced use only.
 #' @param dim Optional. The dimension of the basis used to represent the smooth term within
 #' the scam model formula. If not provided, the rule of thumb is used, i.e.
 #' dim = sqrt(number of points).
@@ -61,6 +65,7 @@
 #'
 AIest <- function(pp,
                   correction="Ripley",
+                  r=NULL,
                   dim=NULL,
                   dim_lims=NULL,
                   rmax=NULL,
@@ -69,29 +74,46 @@ AIest <- function(pp,
   # For now override the correction argument and allow only a single char
   # value due to performance reasons
 
-  # Check the value
-  if (!is.character(correction) || length(correction) > 1) {
-    rlang::abort(class = "ai_error_bad_correction",
-                 message="'correction' argument have to be a character vector
+  if (inherits(pp, "ppp")) {
+    # Check the value
+    if (!is.character(correction) || length(correction) > 1) {
+      rlang::abort(class = "ai_error_bad_correction",
+                   message="'correction' argument have to be a character vector
                  with a single value")
-  }
+    }
 
-  if (correction == "all") {
-    rlang::abort(class = "ai_error_inefficient_correction",
-                 message="Won't use all edge correction methods due to performance reasons,
+    if (correction == "all") {
+      rlang::abort(class = "ai_error_inefficient_correction",
+                   message="Won't use all edge correction methods due to performance reasons,
                  choose a single option")
+    }
+
+    k_est <- spatstat.explore::Kest(pp,
+                                    correction = correction,
+                                    rmax=rmax,
+                                    nlarge=nlarge)
+
+    intensity <- pp$n / spatstat.geom::area(pp$window)
+    pn <- intensity * k_est[[3]]
+
+    pn_est_df <- data.frame(r=k_est$r,
+                            pn=pn)
+
+    if (is.null(dim)) {
+      dim <- choose_basis_dim(pp$n, dim_lims=dim_lims)
+    }
+  } else if (inherits(pp, "data.frame") && ("r" %in% colnames(pp)) && ("pn" %in% colnames(pp))) {
+    pn_est_df <- pp
+
+    if (is.null(dim)) {
+      rlang::abort(class = "ai_error_no_dim",
+                   message="When point number estimate is supplied, \"dim\" argument is mandatory.")
+    }
+  } else {
+    rlang::abort(class = "ai_error_invalid_arg",
+                 message="pp shoud be either an object of class \"ppp\" or a data
+                 frame with the point number estimate and colums \"r\" and \"pn\"")
   }
-
-  k_est <- spatstat.explore::Kest(pp,
-                                  correction = correction,
-                                  rmax=rmax,
-                                  nlarge=nlarge)
-
-  intensity <- pp$n / spatstat.geom::area(pp$window)
-  pn <- intensity * k_est[[3]]
-
-  pn_est_df <- data.frame(r=k_est$r,
-                          pn=pn)
 
   # Estimated number of points is treated as a piece-wise function
   # that equals to 0 until the closest distance between points is reached
@@ -102,41 +124,65 @@ AIest <- function(pp,
   last_ind <- min(nrow(pn_est_df), which(is.na(pn_est_df$pn))[1] - 1, na.rm = TRUE)
   pn_est_defined <- pn_est_df[first_non_zero_ind:last_ind, ]
 
-  if (is.null(dim)) {
-    dim <- choose_basis_dim(pp$n, dim_lims=dim_lims)
-  }
-
   model <- scam::scam(pn ~ s(r, k=dim, bs='mpi'), data=pn_est_defined)
 
   # Smooth a non zero part of the function
-  r_arg <- pn_est_defined$r
-  pn <- stats::predict(model, newdata=list(r=r_arg))
-  pn_deriv <- single_mpi_derivative(model, data=list(r=r_arg))
+  if (is.null(r)) {
+    r <- pn_est_df$r
+  }
 
-  # Workaround when getting a small negative derivative (TODO: is it needed now when derivative is analytical?)
-  pn_deriv <- dplyr::if_else(pn_deriv >= 0, pn_deriv, 0)
+  r_non_increasing <- any(diff(r) <= 0)
+  if (r_non_increasing) {
+    rlang::abort(class = "ai_error_bad_r",
+                 message = "r values should be increasing")
+  }
 
-  ai <- dplyr::if_else(pn > 0 & pn_deriv >= 0,
-                       compute_ai(r_arg, pn, pn_deriv),
-                       -1)
+  r_li <- which(r >= pn_est_defined$r[1])[1]
+  r_hi <- min(length(r), which(r > pn_est_defined$r[nrow(pn_est_defined)])[1] - 1, na.rm = TRUE)
+
+  if (!is.na(r_li) & r_li <= r_hi) {
+    r_def <- r[r_li:r_hi]
+
+    pn <- stats::predict(model, newdata=list(r=r_def))
+    pn_deriv <- single_mpi_derivative(model, data=list(r=r_def))
+
+    # Workaround when getting a small negative derivative (TODO: is it needed now when derivative is analytical?)
+    pn_deriv <- dplyr::if_else(pn_deriv >= 0, pn_deriv, 0)
+
+    ai <- dplyr::if_else(pn > 0 & pn_deriv >= 0,
+                         compute_ai(r_def, pn, pn_deriv),
+                         -1)
+
+    num_ll_pad <- r_li - 1
+    num_na_pad <- length(r) - r_hi
+  } else {
+    ai <- NULL
+    if (is.na(r_li)) {
+      num_ll_pad <- length(r)
+      num_na_pad <- 0
+    } else {
+      num_ll_pad <- 0
+      num_na_pad <- length(r)
+    }
+  }
 
   # Pad the AI value with -1 at distances where there is no neigbours
   # and with NA when the K function is undefined
-  num_ll_pad <- first_non_zero_ind - 1
-  num_na_pad <- nrow(k_est) - last_ind
   ai <- c(rep(-1, num_ll_pad), ai, rep(NA_real_, num_na_pad))
-
-  ai_df <- data.frame(r=k_est$r,
+  ai_df <- data.frame(r=r,
                       theo=0)
 
   # Name the column with AI estimate after the used border correction method
-  correction_name <- colnames(k_est)[3]
+  correction_name <- if (exists("k_est")) colnames(k_est)[3] else "empirical"
   ai_df[correction_name] <- ai
+
+  ai_labl <- if (exists("k_est")) attr(k_est, "labl") else c("r", "%s[pois](r)", "hat(%s)[empirical](r)")
+  ai_desc <- if (exists("k_est")) attr(k_est, "labl") else c("distance argument r", "theoretical Poisson %s", "empirical estimate of %s")
 
   ai_fv <- spatstat.explore::fv(ai_df, valu=correction_name, fname="AI", fmla = ".~r",
                                 ylab=quote(AI(r)), yexp=quote(AI(r)),
-                                labl=attr(k_est, "labl"),
-                                desc = attr(k_est, "desc"))
+                                labl=ai_labl,
+                                desc = ai_desc)
 
   class(ai_fv) <- c("aifv", class(ai_fv))
 
@@ -281,7 +327,9 @@ compute_ai <- function(r, pn, pn_deriv, ai_lims=c(-1, 1)) {
 #'
 #' @param x An object of the class "aifv" that contains the variables to be
 #' plotted.
-#' @param main A title of the plot.
+#' @param ylim (optional) range of y axis. Default is set to the lower and
+#' upper limits of the AI.
+#' @param main (optional) A title of the plot.
 #' @param ... Extra arguments passed to the spatstat.explore::plot.fv
 #'
 #' @return Invisible: either NULL, or a data frame giving the meaning of the
@@ -296,6 +344,6 @@ compute_ai <- function(r, pn, pn_deriv, ai_lims=c(-1, 1)) {
 #' ai_rand <- AIest(rpp)
 #' plot(ai_rand, main = "AI for a random point pattern")
 #'
-plot.aifv <- function(x, main="", ...) {
-  spatstat.explore::plot.fv(x, ylim = c(-1,1), main = main, ...)
+plot.aifv <- function(x, ylim = c(-1,1), main="", ...) {
+  spatstat.explore::plot.fv(x, ylim = ylim, main = main, ...)
 }

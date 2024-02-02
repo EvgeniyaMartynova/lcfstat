@@ -7,6 +7,7 @@
 AIest(
   pp,
   correction = "Ripley",
+  r = NULL,
   dim = NULL,
   dim_lims = NULL,
   rmax = NULL,
@@ -23,6 +24,9 @@ the options "none", "border", "bord.modif", "isotropic", "Ripley", "translate",
 It specifies the edge correction to be applied. Note that the option "all"
 or providing multiple edge correction methods is not supported due to
 performance reasons. Defaults to "Ripley".}
+
+\item{r}{Optional. Vector of values for the argument r at which AI(r)
+should be evaluated. The values must be in increasing order. Advanced use only.}
 
 \item{dim}{Optional. The dimension of the basis used to represent the smooth term within
 the scam model formula. If not provided, the rule of thumb is used, i.e.

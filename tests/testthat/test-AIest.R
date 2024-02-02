@@ -252,6 +252,45 @@ test_that("AIest() applies provided rmax attribute", {
 })
 
 
+test_that("AIest() applies provided r_arg attribute", {
+  seed <- 1511
+  point_num <- 100
+  withr::with_seed(seed, {
+    rpp <- spatstat.random::rpoispp(point_num)
+  })
+
+  r_arg <- seq(0.1, 0.2, by=0.01)
+  ai <- AIest(rpp, r = r_arg)
+  expect_equal(nrow(ai), length(r_arg))
+
+  r_arg <- c(0.05, 0.1, 0.2)
+  ai <- AIest(rpp, r = r_arg)
+  expect_equal(nrow(ai), 3)
+
+  r_arg <- c(0.1)
+  ai <- AIest(rpp, r = r_arg)
+  expect_equal(nrow(ai), 1)
+
+  r_arg <- c(0.001)
+  ai <- AIest(rpp, r = r_arg)
+  expect_equal(nrow(ai), 1)
+
+  r_arg <- c(0.699)
+  ai <- AIest(rpp, r = r_arg)
+  expect_equal(nrow(ai), 1)
+
+  # All r in AI == -1 region
+  r_arg <- c(0.001, 0.0011, 0.0012)
+  ai <- AIest(rpp, r = r_arg)
+  expect_equal(ai$iso, c(-1, -1, -1))
+
+  # All r are too large
+  r_arg <- c(0.8, 0.85, 0.9)
+  ai <- AIest(rpp, r = r_arg)
+  expect_true(all(is.na(ai$iso)))
+})
+
+
 test_that("AIest() value for clustered pattern is greater than 0 at domain size", {
   parent_num <- 20
   clust_pn <- 25
