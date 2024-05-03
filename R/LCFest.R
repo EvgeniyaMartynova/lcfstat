@@ -1,8 +1,8 @@
-#' Attraction Index
+#' Local Correlation Function
 #'
-#'Estimates the Attraction Index function from a point pattern in a window of arbitrary shape.
+#'Estimates the local correlation function function from a point pattern in a window of arbitrary shape.
 #'
-#' @param pp The observed point pattern, from which an estimate of AI(r) will be computed
+#' @param pp The observed point pattern, from which an estimate of LCF(r) will be computed
 #' or N(r) estimate. In case of the point pattern, it should be an object of class "ppp",
 #' or data in any format acceptable to as.ppp(). For N(r), a data frame with columns
 #' "r" (distance) and "pn" (estimated number of points)
@@ -12,7 +12,7 @@
 #' It specifies the edge correction to be applied. Note that the option "all"
 #' or providing multiple edge correction methods is not supported due to
 #' performance reasons. Defaults to "Ripley".
-#' @param r Optional. Vector of values for the argument r at which AI(r)
+#' @param r Optional. Vector of values for the argument r at which LCF(r)
 #' should be evaluated. The values must be in increasing order. Advanced use only.
 #' @param dim Optional. The dimension of the basis used to represent the smooth term within
 #' the scam model formula. If not provided, the rule of thumb is used, i.e.
@@ -25,51 +25,51 @@
 #' nlarge, then only the border correction will be computed (by default),
 #' using a fast algorithm.
 #'
-#' @return An object of class "aifv", inherited from fv.object, which can be
-#' plotted directly using plot.aifv.
+#' @return An object of class "lcffv", inherited from fv.object, which can be
+#' plotted directly using plot.lcffv.
 #' @export
 #'
 #' @examples
 #'
 #' library(spatstat.random)
 #'
-#' # AI for a random point pattern
+#' # LCF for a random point pattern
 #' rpp <- rpoispp(500)
 #'
-#' ai_rand <- AIest(rpp)
-#' plot(ai_rand, main = "AI for a random point pattern")
+#' lcf_rand <- LCFest(rpp)
+#' plot(lcf_rand, main = "LCF for a random point pattern")
 #'
-#' ai <- AIest(rpp, "border")
-#' plot(ai, main = "AI for a random point pattern")
+#' lcf <- LCFest(rpp, "border")
+#' plot(lcf, main = "LCF for a random point pattern")
 #'
-#' # AI for a clustered point pattern
+#' # LCF for a clustered point pattern
 #' clust_pp <- rMatClust(20, 0.05, 25)
 #'
-#' ai_clust <- AIest(clust_pp)
-#' plot(ai_clust, main = "AI for a clustered point pattern")
+#' lcf_clust <- LCFest(clust_pp)
+#' plot(lcf_clust, main = "LCF for a clustered point pattern")
 #'
-#' # AI for a point pattern with dispersion
+#' # LCF for a point pattern with dispersion
 #' hardcore_pp <- rHardcore(300, R=0.05)
-#' ai_disp <- AIest(hardcore_pp)
-#' plot(ai_disp, main = "AI for a point pattern with dispersion")
+#' lcf_disp <- LCFest(hardcore_pp)
+#' plot(lcf_disp, main = "LCF for a point pattern with dispersion")
 #'
-#' # Plot AI for three different point pattern together
-#' plot(ai_rand$r, ai_rand$iso, type="l", ylim=c(-1, 1), col=4)
-#' lines(ai_rand$r, rep(0, nrow(ai_rand)), lty=2)
-#' lines(ai_clust$r, ai_clust$iso, col=2)
-#' lines(ai_disp$r, ai_disp$iso, col=7)
+#' # Plot LCF for three different point pattern together
+#' plot(lcf_rand$r, lcf_rand$iso, type="l", ylim=c(-1, 1), col=4)
+#' lines(lcf_rand$r, rep(0, nrow(lcf_rand)), lty=2)
+#' lines(lcf_clust$r, lcf_clust$iso, col=2)
+#' lines(lcf_disp$r, lcf_disp$iso, col=7)
 #' legend("bottomright",
 #'        c("theoretical", "random", "clustered", "dispersed"),
 #'        col=c(1, 4, 2, 7),
 #'        lty=c(2, 1, 1, 1))
 #'
-AIest <- function(pp,
-                  correction="Ripley",
-                  r=NULL,
-                  dim=NULL,
-                  dim_lims=NULL,
-                  rmax=NULL,
-                  nlarge=3000) {
+LCFest <- function(pp,
+                   correction="Ripley",
+                   r=NULL,
+                   dim=NULL,
+                   dim_lims=NULL,
+                   rmax=NULL,
+                   nlarge=3000) {
 
   # For now override the correction argument and allow only a single char
   # value due to performance reasons
@@ -77,13 +77,13 @@ AIest <- function(pp,
   if (inherits(pp, "ppp")) {
     # Check the value
     if (!is.character(correction) || length(correction) > 1) {
-      rlang::abort(class = "ai_error_bad_correction",
-                   message="'correction' argument have to be a character vector
+      rlang::abort(class = "lcf_error_bad_correction",
+                   message="'correction' argument has to be a character vector
                  with a single value")
     }
 
     if (correction == "all") {
-      rlang::abort(class = "ai_error_inefficient_correction",
+      rlang::abort(class = "lcf_error_inefficient_correction",
                    message="Won't use all edge correction methods due to performance reasons,
                  choose a single option")
     }
@@ -106,14 +106,99 @@ AIest <- function(pp,
     pn_est_df <- pp
 
     if (is.null(dim)) {
-      rlang::abort(class = "ai_error_no_dim",
+      rlang::abort(class = "lcf_error_no_dim",
                    message="When point number estimate is supplied, \"dim\" argument is mandatory.")
     }
   } else {
-    rlang::abort(class = "ai_error_invalid_arg",
+    rlang::abort(class = "lcf_error_invalid_arg",
                  message="pp shoud be either an object of class \"ppp\" or a data
                  frame with the point number estimate and colums \"r\" and \"pn\"")
   }
+
+  # Name the column with LCF estimate after the used border correction method
+  correction_name <- if (exists("k_est")) colnames(k_est)[3] else "empirical"
+  lcf_df <- LCF(pn_est_df, r, dim, correction_name)
+
+  lcf_labl <- if (exists("k_est")) attr(k_est, "labl") else c("r", "%s[pois](r)", "hat(%s)[empirical](r)")
+  lcf_desc <- if (exists("k_est")) attr(k_est, "desc") else c("distance argument r", "theoretical Poisson %s", "empirical estimate of %s")
+
+  lcf_fv <- spatstat.explore::fv(lcf_df, valu=correction_name, fname="LCF", fmla = ".~r",
+                                 ylab=quote(LCF(r)), yexp=quote(LCF(r)),
+                                 labl=lcf_labl,
+                                 desc = lcf_desc)
+
+  class(lcf_fv) <- c("lcffv", class(lcf_fv))
+
+  lcf_fv
+}
+
+LCFcross <- function(pp,
+                     i,
+                     j,
+                     correction="Ripley",
+                     r=NULL,
+                     dim=NULL,
+                     dim_lims=NULL,
+                     rmax=NULL) {
+
+  if (!inherits(pp, "ppp") && "marks" %in% attributes(pp)$names) {
+    rlang::abort(class = "lcf_cross_error_invalid_arg",
+                 message="'pp' argument has to be a multitype point pattern")
+  }
+
+  # Check the value
+  if (!is.character(correction) || length(correction) > 1) {
+    rlang::abort(class = "lcf_error_bad_correction",
+    message="'correction' argument has to be a character vector
+             with a single value")
+  }
+
+  if (correction == "all") {
+    rlang::abort(class = "lcf_error_inefficient_correction",
+                 message="Won't use all edge correction methods due to performance reasons,
+                          choose a single option")
+  }
+
+  # TODO: try catch for as.character(i)
+
+  k_ij <- spatstat.explore::Kcross(pp,
+                                   i, j,
+                                   correction = correction,
+                                   rmax=rmax)
+
+  n_j <- pp[pp$marks == j]$n
+  intensity_j <- n_j / spatstat.geom::area(pp$window)
+  pn <- intensity_j * k_ij[[3]]
+
+  pn_est_df <- data.frame(r=k_ij$r,
+                          pn=pn)
+
+  if (is.null(dim)) {
+    n_i <- pp[pp$marks == i]$n
+    n_geom <- round(sqrt(n_i * n_j))
+    dim <- choose_basis_dim(n_geom, dim_lims=dim_lims)
+  }
+
+  # Name the column with LCF estimate after the used border correction method
+  correction_name <- names(k_ij)[3]
+
+  lcf_df <- LCF(pn_est_df, r, dim, correction_name)
+
+  lcf_labl <- attr(k_ij, "labl")
+  lcf_desc <- attr(k_ij, "desc")
+  lcf_exp <- substitute("LCF"[list(i, j)](r), list(i=i, j=j))
+  lcf_lab <- substitute("LCF"[i, j](r), list(i=i, j=j))
+
+  lcf_fv <- spatstat.explore::fv(lcf_df, argu = "r", valu=correction_name,
+                                 fname=c("LCF", paste0("list(", i, ",", j, ")")),
+                                 fmla = ".~r", ylab=lcf_lab, yexp=lcf_exp,
+                                 labl=lcf_labl, desc=lcf_desc)
+
+  class(lcf_fv) <- c("lcffv", class(lcf_fv))
+  lcf_fv
+}
+
+LCF <- function(pn_est_df, r, dim, lcf_name) {
 
   # Estimated number of points is treated as a piece-wise function
   # that equals to 0 until the closest distance between points is reached
@@ -133,7 +218,7 @@ AIest <- function(pp,
 
   r_non_increasing <- any(diff(r) <= 0)
   if (r_non_increasing) {
-    rlang::abort(class = "ai_error_bad_r",
+    rlang::abort(class = "lcf_error_bad_r",
                  message = "r values should be increasing")
   }
 
@@ -149,14 +234,14 @@ AIest <- function(pp,
     # Workaround when getting a small negative derivative (TODO: is it needed now when derivative is analytical?)
     pn_deriv <- dplyr::if_else(pn_deriv >= 0, pn_deriv, 0)
 
-    ai <- dplyr::if_else(pn > 0 & pn_deriv >= 0,
-                         compute_ai(r_def, pn, pn_deriv),
-                         -1)
+    lcf <- dplyr::if_else(pn > 0 & pn_deriv >= 0,
+                          compute_lcf(r_def, pn, pn_deriv),
+                          -1)
 
     num_ll_pad <- r_li - 1
     num_na_pad <- length(r) - r_hi
   } else {
-    ai <- NULL
+    lcf <- NULL
     if (is.na(r_li)) {
       num_ll_pad <- length(r)
       num_na_pad <- 0
@@ -166,27 +251,14 @@ AIest <- function(pp,
     }
   }
 
-  # Pad the AI value with -1 at distances where there is no neigbours
+  # Pad the LCF value with -1 at distances where there is no neighbors
   # and with NA when the K function is undefined
-  ai <- c(rep(-1, num_ll_pad), ai, rep(NA_real_, num_na_pad))
-  ai_df <- data.frame(r=r,
-                      theo=0)
+  lcf <- c(rep(-1, num_ll_pad), lcf, rep(NA_real_, num_na_pad))
+  lcf_df <- data.frame(r=r,
+                       theo=0)
+  lcf_df[lcf_name] <- lcf
 
-  # Name the column with AI estimate after the used border correction method
-  correction_name <- if (exists("k_est")) colnames(k_est)[3] else "empirical"
-  ai_df[correction_name] <- ai
-
-  ai_labl <- if (exists("k_est")) attr(k_est, "labl") else c("r", "%s[pois](r)", "hat(%s)[empirical](r)")
-  ai_desc <- if (exists("k_est")) attr(k_est, "labl") else c("distance argument r", "theoretical Poisson %s", "empirical estimate of %s")
-
-  ai_fv <- spatstat.explore::fv(ai_df, valu=correction_name, fname="AI", fmla = ".~r",
-                                ylab=quote(AI(r)), yexp=quote(AI(r)),
-                                labl=ai_labl,
-                                desc = ai_desc)
-
-  class(ai_fv) <- c("aifv", class(ai_fv))
-
-  ai_fv
+  lcf_df
 }
 
 
@@ -203,7 +275,7 @@ single_mpi_derivative <- function(model, data) {
 
   # check that it is a scam objects
   if (!inherits(model, "scam")) {
-    rlang::abort(class = "ai_derivative_error_unsupported_model",
+    rlang::abort(class = "lcf_derivative_error_unsupported_model",
                  message = "Only SCAM objects are supported")
   }
 
@@ -211,7 +283,7 @@ single_mpi_derivative <- function(model, data) {
   if (length(model$smooth) != 1 ||
       !inherits(model$smooth[[1]], "mpi.smooth") ||
       length(model$assign) > 1) {
-    rlang::abort(class = "ai_derivative_error_unsupported_model_formula",
+    rlang::abort(class = "lcf_derivative_error_unsupported_model_formula",
                  message ="Only SCAMs with a slingle mpi smooth terms are supported")
   }
 
@@ -219,7 +291,7 @@ single_mpi_derivative <- function(model, data) {
   smooth <- model$smooth[[1]]
 
   if (!(smooth$term %in% names(data))) {
-    rlang::abort(class = "ai_derivative_error_missing_argument",
+    rlang::abort(class = "lcf_derivative_error_missing_argument",
                  message = "A required argument is not provided in the data")
   }
 
@@ -234,7 +306,7 @@ single_mpi_derivative <- function(model, data) {
   ind <- x <= ul & x >= ll
 
   if (sum(ind) != n) {
-    rlang::abort(class = "ai_derivative_error_invalid_argument",
+    rlang::abort(class = "lcf_derivative_error_invalid_argument",
                  message = "Won't evaluate the derivative outside of the function domain")
   }
 
@@ -259,7 +331,7 @@ single_mpi_derivative <- function(model, data) {
 choose_basis_dim <- function(sample_size, dim_lims=NULL) {
 
   if (length(sample_size) > 1 || sample_size < 0 || sample_size %% 1 != 0) {
-    rlang::abort(class = "ai_dim_error_invalid_sample_size",
+    rlang::abort(class = "lcf_dim_error_invalid_sample_size",
                  message = "Sample size should contain a single positive integer value")
   }
 
@@ -270,12 +342,12 @@ choose_basis_dim <- function(sample_size, dim_lims=NULL) {
   }
 
   if (length(dim_lims) != 2 || sum(dim_lims %% 1 != 0) > 0 || sum(dim_lims < 0) > 0) {
-    rlang::abort(class = "ai_dim_error_invalid_dim_lims",
+    rlang::abort(class = "lcf_dim_error_invalid_dim_lims",
                  message = "Incorrect dim_lims format, should be a vector of 2 integer values")
   }
 
   if (dim_lims[1] > dim_lims[2]) {
-    rlang::abort(class = "ai_dim_error_unordered_dim_lims",
+    rlang::abort(class = "lcf_dim_error_unordered_dim_lims",
                  message = "Incorrect dim_lims, the first limit must be lower than the second")
   }
 
@@ -283,67 +355,67 @@ choose_basis_dim <- function(sample_size, dim_lims=NULL) {
   dim
 }
 
-#' The AI value computation
+#' The LCF value computation
 #'
 #' @param r A vector of distances
 #' @param pn A vector of estimated expected number of points within a distance r
 #' @param pn_deriv A vector of estimated derivative of the expected number of points
 #' within a distance r
-#' @param ai_lims Optional. The double vector with 2 values: the lower and
-#' upper limits of the AI, c(lower, upper). The lower value corresponds to the AI value
-#' for maximal dispersion, the upper to the AI value for maximal clustering.
+#' @param lcf_lims Optional. The double vector with 2 values: the lower and
+#' upper limits of the LCF, c(lower, upper). The lower value corresponds to the LCF value
+#' for maximal dispersion, the upper to the LCF value for maximal clustering.
 #' lower > upper is not allowed.
 #'
-#' @returns A vector with AI estimate at r
-compute_ai <- function(r, pn, pn_deriv, ai_lims=c(-1, 1)) {
+#' @returns A vector with LCF estimate at r
+compute_lcf <- function(r, pn, pn_deriv, lcf_lims=c(-1, 1)) {
 
-  if (length(ai_lims) != 2 || !is.numeric(ai_lims)) {
-    rlang::abort(class = "ai_compute_error_invalid_ai_lims",
-                 message = "Incorrect ai_lims format, should be a vector of 2 double values")
+  if (length(lcf_lims) != 2 || !is.numeric(lcf_lims)) {
+    rlang::abort(class = "lcf_compute_error_invalid_lcf_lims",
+                 message = "Incorrect lcf_lims format, should be a vector of 2 double values")
   }
 
-  if (ai_lims[1] > ai_lims[2]) {
-    rlang::abort(class = "ai_compute_error_unordered_ai_lims",
-                 message = "Incorrect ai_lims, the first limit must be lower than the second")
+  if (lcf_lims[1] > lcf_lims[2]) {
+    rlang::abort(class = "lcf_compute_error_unordered_lcf_lims",
+                 message = "Incorrect lcf_lims, the first limit must be lower than the second")
   }
 
   if (!is.numeric(r) || !is.numeric(pn) || !is.numeric(pn_deriv)) {
-    rlang::abort(class = "ai_compute_error_invalid_arg",
+    rlang::abort(class = "lcf_compute_error_invalid_arg",
                  message = "r, pn and pn_deriv have to be double vectors")
   }
 
   if (length(r) != length(pn) || length(pn) != length(pn_deriv)) {
-    rlang::abort(class = "ai_compute_error_arg_length_mismatch",
+    rlang::abort(class = "lcf_compute_error_arg_length_mismatch",
                  message = "r, pn and pn_deriv vectors should have the same length")
   }
 
-  scale <- ai_lims[2] - ai_lims[1]
-  shift <- ai_lims[1]
-  ai <- exp(-log(2) / 2 * r * pn_deriv / pn) * scale + shift
-  ai
+  scale <- lcf_lims[2] - lcf_lims[1]
+  shift <- lcf_lims[1]
+  lcf <- exp(-log(2) / 2 * r * pn_deriv / pn) * scale + shift
+  lcf
 }
 
-#' Plot Function Value for AI
+#' Plot Function Value for LCF
 #'
-#' @param x An object of the class "aifv" that contains the variables to be
+#' @param x An object of the class "lcffv" that contains the variables to be
 #' plotted.
 #' @param ylim (optional) range of y axis. Default is set to the lower and
-#' upper limits of the AI.
+#' upper limits of the LCF.
 #' @param main (optional) A title of the plot.
 #' @param ... Extra arguments passed to the spatstat.explore::plot.fv
 #'
 #' @return Invisible: either NULL, or a data frame giving the meaning of the
 #' different line types and colours.
 #' @export
-#' @export plot.aifv
+#' @export plot.lcffv
 #'
 #' @examples
 #' library(spatstat.random)
 #'
 #' rpp <- rpoispp(500)
-#' ai_rand <- AIest(rpp)
-#' plot(ai_rand, main = "AI for a random point pattern")
+#' lcf_rand <- LCFest(rpp)
+#' plot(lcf_rand, main = "LCF for a random point pattern")
 #'
-plot.aifv <- function(x, ylim = c(-1,1), main="", ...) {
+plot.lcffv <- function(x, ylim = c(-1,1), main="", ...) {
   spatstat.explore::plot.fv(x, ylim = ylim, main = main, ...)
 }

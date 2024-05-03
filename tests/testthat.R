@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(aistat)
+library(lcfstat)
 
-test_check("aistat")
+test_check("lcfstat")

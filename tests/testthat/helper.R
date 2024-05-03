@@ -13,9 +13,9 @@ gen_sigmoid_data <- function(n) {
   r <- seq(-1, 1, length.out=n)
   pn <- exp(4 * r) / (1 + exp(4 * r))
   pn_der <- 4 * exp(4 * r) / (1 + exp(4 * r))^2
-  ai <- exp(-2 * log(2)  * r / (1 + exp(4 * r))) * 2 - 1
+  lcf <- exp(-2 * log(2)  * r / (1 + exp(4 * r))) * 2 - 1
 
-  data.frame(r=r, pn=pn, pn_der=pn_der, ai=ai)
+  data.frame(r=r, pn=pn, pn_der=pn_der, lcf=lcf)
 }
 
 

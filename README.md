@@ -1,23 +1,23 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# Attraction Index: an Intepretable Metric of Clustering in Point Patterns
+# A Uniformly Bounded Correlation Function for Spatial Point Patterns
 
 <!-- badges: start -->
 <!-- badges: end -->
 
-A function to compute the Attraction Index for spatial point patterns, a
-measure of the degree of clustering / dispersion between objects
-designed to have an interpretable scale.
+A function to compute the local correlation function for spatial point
+patterns, that measure of the degree of clustering in a point pattern
+and has a bounded and interpretable scale.
 
 ## Installation
 
-You can install the development version of aistat from
+You can install the development version of lcfstat from
 [GitHub](https://github.com/) with:
 
 ``` r
 # install.packages("devtools")
-devtools::install_github("EvgeniyaMartynova/aistat")
+devtools::install_github("EvgeniyaMartynova/lcfstat")
 ```
 
 ## Example
@@ -25,6 +25,6 @@ devtools::install_github("EvgeniyaMartynova/aistat")
 This is a basic example which shows you how to solve a common problem:
 
 ``` r
-library(aistat)
+library(lcfstat)
 ## basic example code TBA
 ```

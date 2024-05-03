@@ -1,12 +1,12 @@
-Package: aistat
-Title: Attraction Index: an Intepretable Metric of Clustering in Point Patterns
+Package: lcfstat
+Title: A Uniformly Bounded Correlation Function for Spatial Point Patterns
 Version: 0.0.0.9000
 Authors@R: 
     person("Evgenia", "Martynova", , "evg.martynova@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-0461-1787"))
-Description: A function to compute the Attraction Index for spatial point 
-    patterns, a measure of the degree of clustering / dispersion between objects
-    designed to have an interpretable scale.
+Description: A function to compute the local correlation function for spatial point 
+    patterns, that measure of the degree of clustering in a point pattern and has 
+    a bounded and interpretable scale.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
