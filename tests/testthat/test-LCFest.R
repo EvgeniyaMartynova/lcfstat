@@ -162,7 +162,7 @@ test_that("single_mpi_derivative() computes derivative close to the true derivat
 })
 
 
-test_that("single_mpi_derivative() throws error when upsupported model is provided", {
+test_that("single_mpi_derivative() throws an error when upsupported model is provided", {
   n <- 100
   sigmoid_data <- gen_sigmoid_data(n)
   x <- sigmoid_data$r
@@ -186,7 +186,7 @@ test_that("single_mpi_derivative() throws error when upsupported model is provid
 })
 
 
-test_that("single_mpi_derivative() throws error when illegal data is provided", {
+test_that("single_mpi_derivative() throws an error when illegal data is provided", {
   n <- 100
   sigmoid_data <- gen_sigmoid_data(n)
   x <- sigmoid_data$r
@@ -252,46 +252,66 @@ test_that("LCFest() applies provided rmax attribute", {
 })
 
 
-test_that("LCFest() applies provided r_arg attribute", {
-  seed <- 1511
-  point_num <- 100
-  withr::with_seed(seed, {
-    rpp <- spatstat.random::rpoispp(point_num)
-  })
+test_that("LCFest() applies provided r attribute", {
+   seed <- 1511
+   point_num <- 100
+   withr::with_seed(seed, {
+     rpp <- spatstat.random::rpoispp(point_num)
+   })
 
-  r_arg <- seq(0.1, 0.2, by=0.01)
-  lcf <- LCFest(rpp, r = r_arg)
-  expect_equal(nrow(lcf), length(r_arg))
+   r_arg <- seq(0.1, 0.2, by=0.01)
+   lcf <- LCFest(rpp, r = r_arg)
+   expect_equal(nrow(lcf), length(r_arg))
 
-  r_arg <- c(0.05, 0.1, 0.2)
-  lcf <- LCFest(rpp, r = r_arg)
-  expect_equal(nrow(lcf), 3)
+   r_arg <- c(0.05, 0.1, 0.2)
+   lcf <- LCFest(rpp, r = r_arg)
+   expect_equal(nrow(lcf), 3)
 
-  r_arg <- c(0.1)
-  lcf <- LCFest(rpp, r = r_arg)
-  expect_equal(nrow(lcf), 1)
+   r_arg <- c(0.1)
+   lcf <- LCFest(rpp, r = r_arg)
+   expect_equal(nrow(lcf), 1)
 
-  r_arg <- c(0.001)
-  lcf <- LCFest(rpp, r = r_arg)
-  expect_equal(nrow(lcf), 1)
+   r_arg <- c(0.001)
+   lcf <- LCFest(rpp, r = r_arg)
+   expect_equal(nrow(lcf), 1)
 
-  r_arg <- c(0.699)
-  lcf <- LCFest(rpp, r = r_arg)
-  expect_equal(nrow(lcf), 1)
+   r_arg <- c(0.699)
+   lcf <- LCFest(rpp, r = r_arg)
+   expect_equal(nrow(lcf), 1)
 
-  # All r in LCF == -1 region
-  r_arg <- c(0.001, 0.0011, 0.0012)
-  lcf <- LCFest(rpp, r = r_arg)
-  expect_equal(lcf$iso, c(-1, -1, -1))
+   # All r in LCF == -1 region
+   r_arg <- c(0.001, 0.0011, 0.0012)
+   lcf <- LCFest(rpp, r = r_arg)
+   expect_equal(lcf$iso, c(-1, -1, -1))
 
-  # All r are too large
-  r_arg <- c(0.8, 0.85, 0.9)
-  lcf <- LCFest(rpp, r = r_arg)
-  expect_true(all(is.na(lcf$iso)))
+   # All r are too large
+   r_arg <- c(0.8, 0.85, 0.9)
+   lcf <- LCFest(rpp, r = r_arg)
+   expect_true(all(is.na(lcf$iso)))
+})
+
+test_that("LCFest() returns expected output when the estimated a number of points and a
+          number of basis functions are passed", {
+  point_num <- 500
+  rpp <- spatstat.random::rpoispp(point_num)
+  k_est <- spatstat.explore::Kest(rpp)
+  pn_df <- data.frame(pn=k_est[[3]] * 500, r=k_est$r)
+
+  lcf <- LCFest(pn_df, dim=22)
+  expect_equal(ncol(lcf), 3)
+  expect_named(lcf, c("r", "theo", "empirical"))
+  expect_s3_class(lcf, "lcffv")
+  expect_s3_class(lcf, "fv")
+  expect_equal(attr(lcf, "fname"), "LCF")
+  expect_equal(attr(lcf, "fmla"), ".~r")
+  expect_equal(attr(lcf, "ylab"), quote(LCF(r)))
+  expect_equal(attr(lcf, "yexp"), quote(LCF(r)))
+  expect_gte(min(lcf[[3]]), -1)
+  expect_lte(max(lcf[[3]]), 1)
 })
 
 
-test_that("LCFest() value for clustered pattern is greater than 0 at domain size", {
+test_that("LCFest() for clustered pattern is greater than 0 at domain size", {
   parent_num <- 20
   clust_pn <- 25
   rad <- 0.05
@@ -307,7 +327,7 @@ test_that("LCFest() value for clustered pattern is greater than 0 at domain size
 })
 
 
-test_that("LCFest() value for the Hardcore pattern equals to -1 until the inhibition distance", {
+test_that("LCFest() for the Hardcore pattern equals to -1 until the inhibition distance", {
   id <- 0.05
   point_num <- 300
   hardcore_pp <- spatstat.random::rHardcore(point_num, R=id)
@@ -318,7 +338,7 @@ test_that("LCFest() value for the Hardcore pattern equals to -1 until the inhibi
 })
 
 
-test_that("LCFest() value reaches 1 and plateaues for maximum clustering pattern", {
+test_that("LCFest() reaches 1 and plateaues for maximum clustering pattern", {
   rad <- 0.05
   point_num <- 500
 
@@ -373,15 +393,16 @@ test_that("LCFest() reaches expected values for the pattern with three clusters"
 })
 
 
-test_that("LCFest() throws error when the first argument is not of spatstat.geom::ppp type", {
-  # First object has other type than spatstat.geom::ppp
+test_that("LCFest() throws an error when the first argument is not of spatstat.geom::ppp type
+          or data.frame", {
+  # First object has other type than spatstat.geom::ppp or data.frame
   n <- 100
-  df <- data.frame(x = runif(n), y = runif(n))
-  expect_error(LCFest(df))
+  data <- list(x = runif(n), y = runif(n))
+  expect_error(LCFest(data), class = "lcf_error_invalid_arg")
 })
 
 
-test_that("LCFest() throws error when illegal correctiion argument is provided", {
+test_that("LCFest() throws an error when illegal correctiion argument is provided", {
   # First object has other type than spatstat.geom::ppp
   point_num <- 500
   rpp <- spatstat.random::rpoispp(point_num)
@@ -393,4 +414,245 @@ test_that("LCFest() throws error when illegal correctiion argument is provided",
   expect_error(LCFest(rpp, c("qwerty")), "unrecognised correction")
 })
 
+test_that("LCFest() throws an error when the estimated a number of points is passed
+           but a number of basis functions is not provided", {
+  point_num <- 500
+  rpp <- spatstat.random::rpoispp(point_num)
+  k_est <- spatstat.explore::Kest(rpp)
+  pn_df <- data.frame(pn=k_est[[3]] * 500, r=k_est$r)
 
+  expect_error(LCFest(pn_df), class = "lcf_error_no_dim")
+})
+
+test_that("LCFest() throws an error when a data frame is passed as a main argumet but
+           the column names are different from expected", {
+  point_num <- 500
+  rpp <- spatstat.random::rpoispp(point_num)
+  k_est <- spatstat.explore::Kest(rpp)
+
+  # Both 'pn' and 'r' columns are missing
+  pn_df <- data.frame(num_points=k_est[[3]] * 500, arg=k_est$r)
+  expect_error(LCFest(pn_df, dim=22), class = "lcf_error_invalid_arg")
+
+  # Both 'pn' column is missing
+  pn_df <- data.frame(num_points=k_est[[3]] * 500, r=k_est$r)
+  expect_error(LCFest(pn_df, dim=22), class = "lcf_error_invalid_arg")
+
+  # Both r' column are missing
+  pn_df <- data.frame(pn=k_est[[3]] * 500, arg=k_est$r)
+  expect_error(LCFest(pn_df, dim=22), class = "lcf_error_invalid_arg")
+})
+
+test_that("LCFest() throws an error when passed 'r' is non-increasing", {
+  seed <- 1511
+  point_num <- 100
+  withr::with_seed(seed, {
+    rpp <- spatstat.random::rpoispp(point_num)
+  })
+
+  r_arg <- c(0.2, 0.05, 0.1)
+  expect_error(LCFest(rpp, r = r_arg), class = "lcf_error_bad_r")
+})
+
+# LCFcross() tests
+test_that("LCFcross() returns an lcffv object with expected attribute values", {
+  point_num <- 500
+  rpp_mult <- two_type_pp_random(point_num)
+
+  lcf <- LCFcross(rpp_mult)
+  expect_equal(ncol(lcf), 3)
+  expect_named(lcf, c("r", "theo", "iso"))
+  expect_s3_class(lcf, "lcffv")
+  expect_s3_class(lcf, "fv")
+  expect_equal(attr(lcf, "fname"), c("LCF", "list(0,1)"))
+  expect_equal(attr(lcf, "fmla"), ".~r")
+  expect_equal(attr(lcf, "ylab"), quote("LCF"["0", "1"](r)))
+  expect_equal(attr(lcf, "yexp"), quote("LCF"[list("0", "1")](r)))
+  expect_gte(min(lcf[[3]]), -1)
+  expect_lte(max(lcf[[3]]), 1)
+})
+
+test_that("LCFcross() applies provided correction attribute", {
+  point_num <- 500
+  rpp_mult <- two_type_pp_random(point_num)
+
+  lcf <- LCFcross(rpp_mult, correction="border")
+  expect_named(lcf, c("r", "theo", "border"))
+
+  lcf <- LCFcross(rpp_mult, correction="translate")
+  expect_named(lcf, c("r", "theo", "trans"))
+})
+
+test_that("LCFcross() applies provided rmax attribute", {
+  point_num <- 500
+  rpp_mult <- two_type_pp_random(point_num)
+
+  lcf <- LCFcross(rpp_mult, rmax=0.1)
+  expect_gte(min(lcf$r), 0)
+  expect_lte(max(lcf$r), 0.1)
+
+  lcf <- LCFcross(rpp_mult, rmax=0.5)
+  expect_gte(min(lcf$r), 0)
+  expect_lte(max(lcf$r), 0.5)
+
+  # Passed rmax is too large
+  lcf <- LCFcross(rpp_mult, rmax=1)
+  first_na_ind <- which(is.na(lcf$iso))[1]
+  expect_equal(sum(is.na(lcf$iso)), nrow(lcf) - first_na_ind + 1)
+})
+
+test_that("LCFcross() applies i and j arguments", {
+  point_num <- 500
+  rpp_mult <- two_type_pp_random(point_num)
+
+  lcf <- LCFcross(rpp_mult, "1",  "0")
+
+  expect_equal(attr(lcf, "fname"), c("LCF", "list(1,0)"))
+  expect_equal(attr(lcf, "ylab"), quote("LCF"["1", "0"](r)))
+  expect_equal(attr(lcf, "yexp"), quote("LCF"[list("1", "0")](r)))
+
+  lcf <- LCFcross(rpp_mult, "1",  "1")
+
+  expect_equal(attr(lcf, "fname"), c("LCF", "list(1,1)"))
+  expect_equal(attr(lcf, "ylab"), quote("LCF"["1", "1"](r)))
+  expect_equal(attr(lcf, "yexp"), quote("LCF"[list("1", "1")](r)))
+
+  lcf <- LCFcross(rpp_mult, "0",  "0")
+
+  expect_equal(attr(lcf, "fname"), c("LCF", "list(0,0)"))
+  expect_equal(attr(lcf, "ylab"), quote("LCF"["0", "0"](r)))
+  expect_equal(attr(lcf, "yexp"), quote("LCF"[list("0", "0")](r)))
+})
+
+test_that("LCFcross() handles more than two types of objects", {
+
+  rpp_mult <-  multitype_pp_random(1000, type_num = 4)
+
+  # Uses standard defaults if the types of objects are not passed
+  lcf <- LCFcross(rpp_mult)
+
+  expect_equal(attr(lcf, "fname"), c("LCF", "list(0,1)"))
+  expect_equal(attr(lcf, "ylab"), quote("LCF"["0", "1"](r)))
+  expect_equal(attr(lcf, "yexp"), quote("LCF"[list("0", "1")](r)))
+
+  # Some combinations of object types
+  lcf <- LCFcross(rpp_mult, "2", "1")
+
+  expect_equal(attr(lcf, "fname"), c("LCF", "list(2,1)"))
+  expect_equal(attr(lcf, "ylab"), quote("LCF"["2", "1"](r)))
+  expect_equal(attr(lcf, "yexp"), quote("LCF"[list("2", "1")](r)))
+
+  lcf <- LCFcross(rpp_mult, "0", "3")
+
+  expect_equal(attr(lcf, "fname"), c("LCF", "list(0,3)"))
+  expect_equal(attr(lcf, "ylab"), quote("LCF"["0", "3"](r)))
+  expect_equal(attr(lcf, "yexp"), quote("LCF"[list("0", "3")](r)))
+})
+
+test_that("LCFcross() is around 0 for randomly mixed multitype pattern", {
+  point_num <- 2000
+  rpp_mult <- two_type_pp_random(point_num)
+
+  lcf <- LCFcross(rpp_mult)
+
+  values <- c(0.025, 0.05, 0.1, 0.15, 0.2)
+  for (value in values) {
+    value_ind <- which.min(abs(lcf$r - value))
+    expect_lt(abs(lcf[[3]][value_ind]), 0.1)
+  }
+})
+
+test_that("LCFcross() reaches 1 for multitype pattern with extreme attraction
+          and then drops", {
+  point_num <- 1000
+  rpp_mult <- two_type_attraction(point_num)
+
+  lcf <- LCFcross(rpp_mult)
+
+  # Should be around 1 just after 0
+  expect_lt(abs(lcf[[3]][2] - 1), 0.1)
+
+  # Drops relatively quickly
+  value1 <- 0.01
+  value1_ind <- which.min(abs(lcf$r - value1))
+  expect_gt(abs(lcf[[3]][value1_ind] - 1), 0.1)
+  expect_gt(lcf[[3]][value1_ind], 0)
+
+  value2 <- 0.05
+  value2_ind <- which.min(abs(lcf$r - value2))
+  expect_gt(abs(lcf[[3]][value2_ind] - 1), 0.1)
+  expect_gt(lcf[[3]][value2_ind], 0)
+  expect_gt(lcf[[3]][value1_ind], lcf[[3]][value2_ind])
+
+  # Around 0 at larger r
+  values <- c(0.15, 0.2)
+  for (value in values) {
+    value_ind <- which.min(abs(lcf$r - value))
+    expect_lt(abs(lcf[[3]][value_ind]), 0.1)
+  }
+})
+
+test_that("LCFcross() is -1 for the pattern with spatial exclusion and increases
+          for r greated than inclusion distance", {
+  point_num <- 2000
+  rpp_mult <- two_type_repulsion(point_num)
+
+  lcf <- LCFcross(rpp_mult)
+
+  # Should be 0 up until the exclusion distance
+  values <- c(0.01, 0.02)
+  for (value in values) {
+    value_ind <- which.min(abs(lcf$r - value))
+    expect_equal(lcf[[3]][value_ind], -1)
+  }
+
+  # Should increase at the larger distances, but won't reach 0
+  values <- c(0.05, 0.1, 0.15, 0.2)
+  for (value in values) {
+    value_ind <- which.min(abs(lcf$r - value))
+    expect_gt(lcf[[3]][value_ind], -1)
+    expect_lt(lcf[[3]][value_ind], 0)
+  }
+})
+
+test_that("LCFcross() throws an error when the first argument is not a multitype
+          point pattern", {
+  # Try to pass a data.frame
+  n <- 100
+  df <- data.frame(pn = runif(n), r = runif(n))
+  expect_error(LCFcross(df), class = "lcf_cross_error_invalid_arg")
+
+  # Try to pass a point pattern with only one object type
+  pp <- spatstat.random::rpoispp(500)
+  expect_error(LCFcross(pp), class = "lcf_cross_error_invalid_arg")
+
+  # Try to pass an incorrectly defined multitype point pattern
+  pp <- spatstat.random::rpoispp(500)
+  pp$marks <- sample(0:1, spatstat.geom::npoints(pp), replace=TRUE)
+  expect_error(LCFcross(pp), class = "lcf_cross_error_bad_marks")
+
+  pp <- spatstat.random::rpoispp(500)
+  pp$marks <- factor(rep(0, spatstat.geom::npoints(pp)))
+  expect_error(LCFcross(pp), class = "lcf_cross_error_bad_marks")
+})
+
+test_that("LCFcross() throws an error when illegal correctiion argument is provided", {
+  point_num <- 2000
+  rpp_mult <- two_type_pp_random(point_num)
+
+  # Illegal correction parameter
+  expect_error(LCFcross(rpp_mult, correction=1), class = "lcf_cross_error_bad_correction")
+  expect_error(LCFcross(rpp_mult, correction=c("Ripley", "border")), class = "lcf_cross_error_bad_correction")
+  expect_error(LCFcross(rpp_mult, correction="all"), class = "lcf_cross_error_inefficient_correction")
+  expect_error(LCFcross(rpp_mult, correction="qwerty"), "unrecognised correction")
+})
+
+test_that("LCFcross() throws an error when invalid object type is passed", {
+  point_num <- 2000
+  rpp_mult <- two_type_pp_random(point_num)
+
+  # Illegal correction parameter
+  expect_error(LCFcross(rpp_mult, "2", "0"), class = "lcf_cross_error_wrong_type")
+  expect_error(LCFcross(rpp_mult, "1", "2"), class = "lcf_cross_error_wrong_type")
+  expect_error(LCFcross(rpp_mult, "2", "3"), class = "lcf_cross_error_wrong_type")
+})

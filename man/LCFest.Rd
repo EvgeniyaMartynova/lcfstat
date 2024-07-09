@@ -16,11 +16,10 @@ LCFest(
 }
 \arguments{
 \item{pp}{The observed point pattern, from which an estimate of LCF(r) will be computed
-or N(r) estimate. In case of the point pattern, it should be an object of class "ppp",
-or data in any format acceptable to as.ppp(). For N(r), a data frame with columns
-"r" (distance) and "pn" (estimated number of points)}
+or N(r) estimate. In case of the point pattern, it should be an object of class "ppp".
+For N(r), a data frame with columns "r" (distance) and "pn" (estimated number of points)}
 
-\item{correction}{Optional. A character vector containing one and only one of
+\item{correction}{Optional. A string containing one of
 the options "none", "border", "bord.modif", "isotropic", "Ripley", "translate",
 "translation", "rigid", "none", "periodic", "good" or "best".
 It specifies the edge correction to be applied. Note that the option "all"
@@ -46,10 +45,17 @@ using a fast algorithm.}
 }
 \value{
 An object of class "lcffv", inherited from fv.object, which can be
-plotted directly using plot.lcffv.
+plotted directly using plot.lcffv. Essentially a data frame that contains
+columns
+
+r      the value of the argument r at which LCF(r) is estimated
+theo   the theoretical value of LCF(r) for Poisson process, 0
+
+And a column with the empirical estimate of LCF(r) obtained from the point pattern
+using the specified edge correction method.
 }
 \description{
-Estimates the local correlation function function from a point pattern in a window of arbitrary shape.
+Estimates the local correlation function from a point pattern in a window of arbitrary shape.
 }
 \examples{
 

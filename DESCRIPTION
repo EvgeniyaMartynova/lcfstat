@@ -14,7 +14,7 @@ RoxygenNote: 7.2.3
 Imports: 
     dplyr, rlang, scam, spatstat.explore, spatstat.geom, splines
 Suggests: 
-    testthat (>= 3.0.0), spatstat.random(>= 3.2-1), withr(>= 2.5.2), mgcv(>= 1.8-42)
+    testthat (>= 3.0.0), spatstat.random(>= 3.2-1), withr(>= 2.5.2), mgcv(>= 1.8-42), spatstat.data (>= 3.0-3)
 Config/testthat/edition: 3
 URL: https://github.com/EvgeniyaMartynova/aistat
 BugReports: https://github.com/EvgeniyaMartynova/aistat/issues

@@ -1,12 +1,11 @@
 #' Local Correlation Function
 #'
-#'Estimates the local correlation function function from a point pattern in a window of arbitrary shape.
+#'Estimates the local correlation function from a point pattern in a window of arbitrary shape.
 #'
 #' @param pp The observed point pattern, from which an estimate of LCF(r) will be computed
-#' or N(r) estimate. In case of the point pattern, it should be an object of class "ppp",
-#' or data in any format acceptable to as.ppp(). For N(r), a data frame with columns
-#' "r" (distance) and "pn" (estimated number of points)
-#' @param correction Optional. A character vector containing one and only one of
+#' or N(r) estimate. In case of the point pattern, it should be an object of class "ppp".
+#' For N(r), a data frame with columns "r" (distance) and "pn" (estimated number of points)
+#' @param correction Optional. A string containing one of
 #' the options "none", "border", "bord.modif", "isotropic", "Ripley", "translate",
 #' "translation", "rigid", "none", "periodic", "good" or "best".
 #' It specifies the edge correction to be applied. Note that the option "all"
@@ -26,7 +25,15 @@
 #' using a fast algorithm.
 #'
 #' @return An object of class "lcffv", inherited from fv.object, which can be
-#' plotted directly using plot.lcffv.
+#' plotted directly using plot.lcffv. Essentially a data frame that contains
+#' columns
+#'
+#' r      the value of the argument r at which LCF(r) is estimated
+#' theo   the theoretical value of LCF(r) for Poisson process, 0
+#'
+#' And a column with the empirical estimate of LCF(r) obtained from the point pattern
+#' using the specified edge correction method.
+#'
 #' @export
 #'
 #' @examples
@@ -71,7 +78,7 @@ LCFest <- function(pp,
                    rmax=NULL,
                    nlarge=3000) {
 
-  # For now override the correction argument and allow only a single char
+  # For now override the correction argument and allow only a single character
   # value due to performance reasons
 
   if (inherits(pp, "ppp")) {
@@ -124,14 +131,58 @@ LCFest <- function(pp,
 
   lcf_fv <- spatstat.explore::fv(lcf_df, valu=correction_name, fname="LCF", fmla = ".~r",
                                  ylab=quote(LCF(r)), yexp=quote(LCF(r)),
-                                 labl=lcf_labl,
-                                 desc = lcf_desc)
+                                 labl=lcf_labl, desc = lcf_desc)
 
   class(lcf_fv) <- c("lcffv", class(lcf_fv))
 
   lcf_fv
 }
 
+#' Multitype LCF (Cross-type)
+#'
+#' For a multitype point pattern, estimate the cross-LCF which estimates the spatial
+#' distribution of objects of type j with respect to objects of type i.
+#'
+#' @param pp The observed point pattern, from which an estimate of the cross-LCF will be computed.
+#' It must be a multitype point pattern (a marked point pattern whose marks are a factor).
+#' @param i The type (mark value) of the points in pp from which distances are measured.
+#' Must be a character string. Defaults to the first level of marks(pp).
+#' @param j The type (mark value) of the points in pp to which distances are measured.
+#' Must be a character string. Defaults to the second level of marks(pp).
+#' @param correction Optional. A string containing one of
+#' the options "none", "border", "bord.modif", "isotropic", "Ripley", "translate",
+#' "translation", "rigid", "none", "periodic", "good" or "best".
+#' It specifies the edge correction to be applied. Note that the option "all"
+#' or providing multiple edge correction methods is not supported due to
+#' performance reasons. Defaults to "Ripley".
+#' @param r Optional. Vector of values for the argument r at which cross-LCF(r)
+#' should be evaluated. The values must be in increasing order. Advanced use only.
+#' @param dim Optional. The dimension of the basis used to represent the smooth term within
+#' the scam model formula. If not provided, the rule of thumb is used.
+#' @param dim_lims Optional. The integer vector with 2 values: the lower and
+#' upper limits of the possible value of dim, c(lower, upper). lower > upper
+#' is not allowed.
+#' @param rmax Optional. Maximum desired value of the argument.
+#'
+#' @return An object of class "lcffv", inherited from fv.object, which can be
+#' plotted directly using plot.lcffv. Essentially a data frame that contains
+#' columns
+#'
+#' r      the value of the argument r at which cross-LCF(r) is estimated
+#' theo   the theoretical value of cross-LCF(r) for a marked Poisson process, 0
+#'
+#' And a column with the empirical estimate of cross-LCF(r) obtained from the point pattern
+#' using the specified edge correction method.
+#'
+#' @export
+#'
+#' @examples
+#'
+#' library(spatstat.data)
+#'
+#' lcf_cross <- LCFcross(amacrine, "on", "off")
+#' plot(lcf_cross)
+#'
 LCFcross <- function(pp,
                      i,
                      j,
@@ -141,25 +192,49 @@ LCFcross <- function(pp,
                      dim_lims=NULL,
                      rmax=NULL) {
 
-  if (!inherits(pp, "ppp") && "marks" %in% attributes(pp)$names) {
+  if (!inherits(pp, "ppp") || !("marks" %in% attributes(pp)$names)) {
     rlang::abort(class = "lcf_cross_error_invalid_arg",
                  message="'pp' argument has to be a multitype point pattern")
   }
 
-  # Check the value
+  mark_levels <- attr(pp$marks, "levels")
+
+  if (is.null(mark_levels) || length(mark_levels) < 2) {
+    rlang::abort(class = "lcf_cross_error_bad_marks",
+                 message="'marks' should be a factor with at least two levels")
+  }
+
   if (!is.character(correction) || length(correction) > 1) {
-    rlang::abort(class = "lcf_error_bad_correction",
+    rlang::abort(class = "lcf_cross_error_bad_correction",
     message="'correction' argument has to be a character vector
              with a single value")
   }
 
   if (correction == "all") {
-    rlang::abort(class = "lcf_error_inefficient_correction",
+    rlang::abort(class = "lcf_cross_error_inefficient_correction",
                  message="Won't use all edge correction methods due to performance reasons,
                           choose a single option")
   }
 
-  # TODO: try catch for as.character(i)
+  if (!missing(i)) {
+    if (!(i %in% mark_levels)) {
+      rlang::abort(class = "lcf_cross_error_wrong_type",
+                   message="'i' should be one of the factor levels
+                   of marks assigned to a point pattern")
+    }
+  } else {
+    i <- mark_levels[1]
+  }
+
+  if (!missing(j)) {
+    if (!(j %in% mark_levels)) {
+      rlang::abort(class = "lcf_cross_error_wrong_type",
+                   message="'j' should be one of the factor levels
+                   of marks assigned to a point pattern")
+    }
+  } else {
+    j <- mark_levels[2]
+  }
 
   k_ij <- spatstat.explore::Kcross(pp,
                                    i, j,
@@ -180,7 +255,7 @@ LCFcross <- function(pp,
   }
 
   # Name the column with LCF estimate after the used border correction method
-  correction_name <- names(k_ij)[3]
+  correction_name <- colnames(k_ij)[3]
 
   lcf_df <- LCF(pn_est_df, r, dim, correction_name)
 
@@ -189,7 +264,7 @@ LCFcross <- function(pp,
   lcf_exp <- substitute("LCF"[list(i, j)](r), list(i=i, j=j))
   lcf_lab <- substitute("LCF"[i, j](r), list(i=i, j=j))
 
-  lcf_fv <- spatstat.explore::fv(lcf_df, argu = "r", valu=correction_name,
+  lcf_fv <- spatstat.explore::fv(lcf_df, valu=correction_name,
                                  fname=c("LCF", paste0("list(", i, ",", j, ")")),
                                  fmla = ".~r", ylab=lcf_lab, yexp=lcf_exp,
                                  labl=lcf_labl, desc=lcf_desc)
@@ -198,20 +273,39 @@ LCFcross <- function(pp,
   lcf_fv
 }
 
-LCF <- function(pn_est_df, r, dim, lcf_name) {
+#' LCF estimate
+#'
+#' Estimates LCF by using smooth approximation of the empirical estimate of
+#' the number of points, N(r), and computing its derivative
+#'
+#' @param pn_est_df The data frame with estimated number of points at distance r
+#' that will be used to estimate LCF. Should have two columns
+#' "r" (distance) and "pn" (estimated number of points)
+#' @param r Optional. Optional. Vector of values for the argument r at which LCF(r)
+#' should be evaluated. The values must be in increasing order. Advanced use only.
+#' @param dim The dimension of the basis used to represent the smooth term within
+#' the scam model formula. If not provided, the rule of thumb is used, i.e.
+#' dim = sqrt(number of points).
+#' @param est_name The name of the column that contains the LCF's empirical estimate.
+#'
+#' @return A data frame with 3 columns: r contains distances, theo contains LCF's
+#' theoretical value at the corresponding distance and columns names with est_name
+#' contains the empirical estimate of the function
+LCF <- function(pn_est_df, r=NULL, dim, est_name) {
 
   # Estimated number of points is treated as a piece-wise function
   # that equals to 0 until the closest distance between points is reached
   # and then increases monotonously.
   # Only monotonously increasing part is smoothed
   first_non_zero_ind <- which(pn_est_df$pn != 0)[1]
+
   # Handling the situation when rmax is too large and Kest returns NAs
   last_ind <- min(nrow(pn_est_df), which(is.na(pn_est_df$pn))[1] - 1, na.rm = TRUE)
   pn_est_defined <- pn_est_df[first_non_zero_ind:last_ind, ]
 
   model <- scam::scam(pn ~ s(r, k=dim, bs='mpi'), data=pn_est_defined)
 
-  # Smooth a non zero part of the function
+  # If r is not specify, return the result for all r in pn_est_df
   if (is.null(r)) {
     r <- pn_est_df$r
   }
@@ -256,7 +350,7 @@ LCF <- function(pn_est_df, r, dim, lcf_name) {
   lcf <- c(rep(-1, num_ll_pad), lcf, rep(NA_real_, num_na_pad))
   lcf_df <- data.frame(r=r,
                        theo=0)
-  lcf_df[lcf_name] <- lcf
+  lcf_df[est_name] <- lcf
 
   lcf_df
 }
