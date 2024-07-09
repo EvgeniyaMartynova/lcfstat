@@ -288,6 +288,40 @@ test_that("LCFest() applies provided r attribute", {
    r_arg <- c(0.8, 0.85, 0.9)
    lcf <- LCFest(rpp, r = r_arg)
    expect_true(all(is.na(lcf$iso)))
+
+   # number of breaks in r is larger than standard
+   r_arg <- seq(0, 0.2, length.out=1000)
+   lcf <- LCFest(rpp, r = r_arg)
+   expect_equal(nrow(lcf), 1000)
+   expect_equal(max(lcf$r), 0.2)
+
+   # number of breaks in r is larger than standard and max(r) > standard rmax
+   r_arg <- seq(0, 0.3, length.out=1000)
+   lcf <- LCFest(rpp, r = r_arg)
+   expect_equal(nrow(lcf), 1000)
+   expect_equal(max(lcf$r), 0.3)
+   expect_false(all(is.na(lcf$iso)))
+
+   # number of breaks in r is larger than standard and rmax < max(r) is passed
+   r_arg <- seq(0, 0.3, length.out=1000)
+   lcf <- LCFest(rpp, r = r_arg, rmax=0.2)
+   expect_equal(nrow(lcf), 1000)
+   expect_equal(max(lcf$r), 0.3)
+   expect_false(all(is.na(lcf$iso[lcf$r <= 2])))
+   expect_true(all(is.na(lcf$iso[lcf$r > 2])))
+
+   # very small r is passed
+   r_arg <- seq(0, 0.001, length.out=1000)
+   lcf <- LCFest(rpp, r = r_arg)
+   expect_equal(nrow(lcf), 1000)
+   expect_equal(lcf$iso, rep(-1, 1000))
+
+   # too large r is passed
+   r_arg <- seq(0, 0.9, length.out=2000)
+   lcf <- LCFest(rpp, r = r_arg)
+   expect_equal(nrow(lcf), 2000)
+   expect_false(all(is.na(lcf$iso[lcf$r <= sqrt(2) / 2])))
+   expect_true(all(is.na(lcf$iso[lcf$r > sqrt(2) / 2])))
 })
 
 test_that("LCFest() returns expected output when the estimated a number of points and a
@@ -522,6 +556,79 @@ test_that("LCFcross() applies i and j arguments", {
   expect_equal(attr(lcf, "fname"), c("LCF", "list(0,0)"))
   expect_equal(attr(lcf, "ylab"), quote("LCF"["0", "0"](r)))
   expect_equal(attr(lcf, "yexp"), quote("LCF"[list("0", "0")](r)))
+})
+
+
+test_that("LCFcross() applies provided r attribute", {
+  seed <- 1511
+  point_num <- 500
+  withr::with_seed(seed, {
+    rpp_mult <- two_type_pp_random(point_num)
+  })
+
+  r_arg <- seq(0.1, 0.2, by=0.01)
+  lcf <- LCFcross(rpp_mult, r = r_arg)
+  expect_equal(nrow(lcf), length(r_arg))
+
+  r_arg <- c(0.05, 0.1, 0.2)
+  lcf <- LCFcross(rpp_mult, r = r_arg)
+  expect_equal(nrow(lcf), 3)
+
+  r_arg <- c(0.1)
+  lcf <- LCFcross(rpp_mult, r = r_arg)
+  expect_equal(nrow(lcf), 1)
+
+  r_arg <- c(0.001)
+  lcf <- LCFcross(rpp_mult, r = r_arg)
+  expect_equal(nrow(lcf), 1)
+
+  r_arg <- c(0.699)
+  lcf <- LCFcross(rpp_mult, r = r_arg)
+  expect_equal(nrow(lcf), 1)
+
+  # All r in LCF == -1 region
+  r_arg <- c(0.001, 0.0011, 0.0012)
+  lcf <- LCFcross(rpp_mult, r = r_arg)
+  expect_equal(lcf$iso, c(-1, -1, -1))
+
+  # All r are too large
+  r_arg <- c(0.8, 0.85, 0.9)
+  lcf <- LCFcross(rpp_mult, r = r_arg)
+  expect_true(all(is.na(lcf$iso)))
+
+  # number of breaks in r is larger than standard
+  r_arg <- seq(0, 0.2, length.out=1000)
+  lcf <- LCFcross(rpp_mult, r = r_arg)
+  expect_equal(nrow(lcf), 1000)
+  expect_equal(max(lcf$r), 0.2)
+
+  # number of breaks in r is larger than standard and max(r) > standard rmax
+  r_arg <- seq(0, 0.3, length.out=1000)
+  lcf <- LCFcross(rpp_mult, r = r_arg)
+  expect_equal(nrow(lcf), 1000)
+  expect_equal(max(lcf$r), 0.3)
+  expect_false(all(is.na(lcf$iso)))
+
+  # number of breaks in r is larger than standard and rmax < max(r) is passed
+  r_arg <- seq(0, 0.3, length.out=1000)
+  lcf <- LCFcross(rpp_mult, r = r_arg, rmax=0.2)
+  expect_equal(nrow(lcf), 1000)
+  expect_equal(max(lcf$r), 0.3)
+  expect_false(all(is.na(lcf$iso[lcf$r <= 2])))
+  expect_true(all(is.na(lcf$iso[lcf$r > 2])))
+
+  # very small r is passed
+  r_arg <- seq(0, 0.001, length.out=1000)
+  lcf <- LCFcross(rpp_mult, r = r_arg)
+  expect_equal(nrow(lcf), 1000)
+  expect_equal(lcf$iso, rep(-1, 1000))
+
+  # too large r is passed
+  r_arg <- seq(0, 0.9, length.out=2000)
+  lcf <- LCFcross(rpp_mult, r = r_arg)
+  expect_equal(nrow(lcf), 2000)
+  expect_false(all(is.na(lcf$iso[lcf$r <= sqrt(2) / 2])))
+  expect_true(all(is.na(lcf$iso[lcf$r > sqrt(2) / 2])))
 })
 
 test_that("LCFcross() handles more than two types of objects", {

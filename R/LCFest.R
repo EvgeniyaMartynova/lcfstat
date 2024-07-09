@@ -95,9 +95,11 @@ LCFest <- function(pp,
                  choose a single option")
     }
 
+    r_arg <- get_r_arg(r)
     k_est <- spatstat.explore::Kest(pp,
                                     correction = correction,
                                     rmax=rmax,
+                                    r=r_arg,
                                     nlarge=nlarge)
 
     intensity <- pp$n / spatstat.geom::area(pp$window)
@@ -236,8 +238,10 @@ LCFcross <- function(pp,
     j <- mark_levels[2]
   }
 
+  r_arg <- get_r_arg(r)
   k_ij <- spatstat.explore::Kcross(pp,
                                    i, j,
+                                   r=r_arg,
                                    correction = correction,
                                    rmax=rmax)
 
@@ -292,23 +296,25 @@ LCFcross <- function(pp,
 #' theoretical value at the corresponding distance and columns names with est_name
 #' contains the empirical estimate of the function
 LCF <- function(pn_est_df, r=NULL, dim, est_name) {
+  # If r is not specified, return the result for all r in pn_est_df
+  if (is.null(r)) {
+    r <- pn_est_df$r
+  }
 
-  # Estimated number of points is treated as a piece-wise function
-  # that equals to 0 until the closest distance between points is reached
-  # and then increases monotonously.
-  # Only monotonously increasing part is smoothed
   first_non_zero_ind <- which(pn_est_df$pn != 0)[1]
+  # If there is no non-zero estimate of point number, return LCF = -1 everywhere
+  if (is.na(first_non_zero_ind)) {
+    lcf_df <- data.frame(r=r,
+                         theo=0)
+    lcf_df[est_name] <- -1
+    return(lcf_df)
+  }
 
   # Handling the situation when rmax is too large and Kest returns NAs
   last_ind <- min(nrow(pn_est_df), which(is.na(pn_est_df$pn))[1] - 1, na.rm = TRUE)
   pn_est_defined <- pn_est_df[first_non_zero_ind:last_ind, ]
 
   model <- scam::scam(pn ~ s(r, k=dim, bs='mpi'), data=pn_est_defined)
-
-  # If r is not specify, return the result for all r in pn_est_df
-  if (is.null(r)) {
-    r <- pn_est_df$r
-  }
 
   r_non_increasing <- any(diff(r) <= 0)
   if (r_non_increasing) {
@@ -487,6 +493,16 @@ compute_lcf <- function(r, pn, pn_deriv, lcf_lims=c(-1, 1)) {
   shift <- lcf_lims[1]
   lcf <- exp(-log(2) / 2 * r * pn_deriv / pn) * scale + shift
   lcf
+}
+
+get_r_arg <- function(r) {
+  r_arg <- NULL
+
+  if (!is.null(r) && length(r) > 513) {
+    r_arg <- r
+  }
+
+  r_arg
 }
 
 #' Plot Function Value for LCF
