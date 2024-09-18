@@ -15,14 +15,19 @@ upper limits of the LCF.}
 
 \item{main}{(optional) A title of the plot.}
 
-\item{...}{Extra arguments passed to the spatstat.explore::plot.fv}
+\item{...}{Extra arguments passed to the \code{\link[spatstat.explore]{plot.fv}}.}
 }
 \value{
 Invisible: either NULL, or a data frame giving the meaning of the
 different line types and colours.
 }
 \description{
-Plot Function Value for LCF
+Plot method for the class "lcffv".
+}
+\details{
+Calls \code{\link[spatstat.explore]{plot.fv}} from the \code{spatstat.explore}
+package and sets y-axis to the range of LCF, \eqn{[-1,1]}, to aid visual interpretation.
+See \code{\link[spatstat.explore]{plot.fv}} for the information about the plotting parameters.
 }
 \examples{
 library(spatstat.random)
@@ -31,4 +36,10 @@ rpp <- rpoispp(500)
 lcf_rand <- LCFest(rpp)
 plot(lcf_rand, main = "LCF for a random point pattern")
 
+}
+\seealso{
+\code{\link{LCFest}}, \code{\link{LCFcross}}
+}
+\author{
+Evgenia Martynova \email{evg.martynova@gmail.com}
 }

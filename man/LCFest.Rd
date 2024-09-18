@@ -15,47 +15,97 @@ LCFest(
 )
 }
 \arguments{
-\item{pp}{The observed point pattern, from which an estimate of LCF(r) will be computed
-or N(r) estimate. In case of the point pattern, it should be an object of class "ppp".
-For N(r), a data frame with columns "r" (distance) and "pn" (estimated number of points)}
+\item{pp}{The observed point pattern, from which an estimate of \eqn{LCF(r)} will be computed
+or the estimated average number of neighbors of a point \eqn{N(r)}. In case of the point pattern, it should be an object of class "ppp".
+For \eqn{N(r)}, a data frame with columns \code{r} (distance) and \code{pn} (estimated number of points) is expected.}
 
 \item{correction}{Optional. A string containing one of
-the options "none", "border", "bord.modif", "isotropic", "Ripley", "translate",
-"translation", "rigid", "none", "periodic", "good" or "best".
+the options "\code{none}", "\code{border}", "\code{bord.modif}", "\code{isotropic}",
+"\code{Ripley}", "\code{translate}", "\code{translation}", "\code{rigid}",
+"\code{periodic}", "\code{good}" or "\code{best}".
 It specifies the edge correction to be applied. Note that the option "all"
 or providing multiple edge correction methods is not supported due to
-performance reasons. Defaults to "Ripley".}
+performance reasons. Defaults to "\code{Ripley}"/"\code{isotropic}".}
 
-\item{r}{Optional. Vector of values for the argument r at which LCF(r)
+\item{r}{Optional. Vector of values for the argument \eqn{r} at which \eqn{LCF(r)}
 should be evaluated. The values must be in increasing order. Advanced use only.}
 
 \item{dim}{Optional. The dimension of the basis used to represent the smooth term within
 the scam model formula. If not provided, the rule of thumb is used, i.e.
-dim = sqrt(number of points).}
+\eqn{dim = \sqrt{n}} where \eqn{n} is the number of points. Must be provided when the estimate
+of \eqn{N(r)} is passed to \code{pp}.}
 
-\item{dim_lims}{Optional. The integer vector with 2 values: the lower and
-upper limits of the possible value of dim, c(lower, upper). lower > upper
-is not allowed.}
+\item{dim_lims}{Optional. The integer vector of 2 values: the lower and
+upper limits of the possible value of dim, \code{c(lower, upper)}. \code{lower} > \code{upper}
+is not allowed. Only applied when \code{dim} is not provided and computed with the rule of thumb.
+Clips the computed \eqn{dim} to \eqn{[lower, upper]} interval.}
 
 \item{rmax}{Optional. Maximum desired value of the argument.}
 
 \item{nlarge}{Optional. Efficiency threshold. If the number of points exceeds
-nlarge, then only the border correction will be computed (by default),
-using a fast algorithm.}
+\code{nlarge}, then only the border correction will be computed (by default),
+using a fast algorithm. The default is 3000.}
 }
 \value{
-An object of class "lcffv", inherited from fv.object, which can be
-plotted directly using plot.lcffv. Essentially a data frame that contains
-columns
+An object of class "lcffv", inherited from \code{\link[spatstat.explore]{fv.object}}, which can be
+plotted directly using \code{\link{plot.lcffv}}. Essentially a data frame that contains
+columns:
 
-r      the value of the argument r at which LCF(r) is estimated
-theo   the theoretical value of LCF(r) for Poisson process, 0
+\code{r} --     the value of the argument \eqn{r} at which \eqn{LCF(r)} is estimated
 
-And a column with the empirical estimate of LCF(r) obtained from the point pattern
-using the specified edge correction method.
+\code{theo} --   the theoretical value of \eqn{LCF(r)} for Poisson process, \eqn{0}
+
+and a column named after the used edge correction method, e.g. "\code{iso}" or "\code{border}",
+with the empirical estimate of \eqn{LCF(r)} obtained from the point pattern.
 }
 \description{
 Estimates the local correlation function from a point pattern in a window of arbitrary shape.
+}
+\details{
+The local correlation function, \eqn{LCF(r)}, is a summary function of spatial statistics which estimates
+a degree of clustering or dispersion at distance \eqn{r} in a point process (Martynova, 2024). It is based on
+the influential Ripley's \eqn{K}-function, \code{\link[spatstat.explore]{Kest}}, or more precisely, on the
+underlying summary function \eqn{N(r)}, the expected number of random points within a distance \eqn{r}
+of a typical random point.
+The following properties make it possible to interpret LCF as a degree of clustering or dispersion:
+
+\enumerate{
+\item \eqn{LCF(r)} is limited to the range \eqn{[-1,1]},
+\item \eqn{LCF(r)} is asymptotically \eqn{0} for CSR,
+\item \eqn{LCF(r) = 1} for maximal clustering (e.g. for \eqn{r > r_d}  if all points are concentrated inside the disc with the diameter \eqn{r_d}),
+\item \eqn{LCF(r) = -1} for maximal dispersion (e.g. lattice at \eqn{r} smaller than the distance between nearest neighbor),
+}
+
+The scale of LCF is inspired by the linear correlation coefficient, and highlights the
+opposite meaning of clustering and dispersion.
+The advantage of the LCF in comparison to other summary functions of spatial statistics is
+that it is uniformly bounded, which means that its extreme values \eqn{-1} and \eqn{1} are identical
+and attainable for all scales \eqn{r}. Altogether, this makes LCF an attractive metric
+for researches who are interested in extracting spatial information in an interpretable way.
+As with other \eqn{K}-based spatial statistics, researchers can analyze the entire
+function graph of LCF for a single or a few patterns or construct summary measures for joint analysis
+of many point patterns, e.g. functon value at a certain distance or the area under the curve.
+
+Formally, maximal clustering and dispersion can be defined using the the expected number of additional
+random points within a distance \eqn{r} of a typical random point, \eqn{N(r)}.
+
+\itemize{
+\item A point process with \eqn{N(r) = 0} is \emph{maximally dispersed} at distance \eqn{r}.
+\item If \eqn{N(r) > 0} and \eqn{N(r) = N(hr)} for some \eqn{h > 1}, then a point process
+is \emph{maximally clustered at distance} \eqn{r}.
+}
+
+LCF can be estimated as
+
+\deqn{LCF(r) =  \begin{cases} 2\exp{ \left(  - \frac{\ln{2}}{2} \frac{r\, N'(r)}{N(r)} \right)} - 1, \quad N(r) > 0  \\ -1, \quad N(r) = 0 \end{cases}}
+
+In this package, we extract the estimate of \eqn{N(r)} using the \code{\link[spatstat.explore]{Kest}}
+function from the \code{spatstat} package and obtains its smooth monotonically increasing spline
+approximation with \code{\link[scam]{scam}} package (Pya, 2015) to calculate the derivative, \eqn{N'(r)}.
+
+Importantly, LCF is bounded under the assumption that the estimated \eqn{N(r)} is monotonically
+non-decreasing. Although, this is typically the case, there might be some edge cases
+when the appropriate edge correction method should be chosen to preserve this property.
 }
 \examples{
 
@@ -81,7 +131,7 @@ hardcore_pp <- rHardcore(300, R=0.05)
 lcf_disp <- LCFest(hardcore_pp)
 plot(lcf_disp, main = "LCF for a point pattern with dispersion")
 
-# Plot LCF for three different point pattern together
+# Plot LCF for three different point patterns together
 plot(lcf_rand$r, lcf_rand$iso, type="l", ylim=c(-1, 1), col=4)
 lines(lcf_rand$r, rep(0, nrow(lcf_rand)), lty=2)
 lines(lcf_clust$r, lcf_clust$iso, col=2)
@@ -91,4 +141,19 @@ legend("bottomright",
        col=c(1, 4, 2, 7),
        lty=c(2, 1, 1, 1))
 
+}
+\references{
+Martynova, E. and Textor, J., 2024, August.
+A Uniformly Bounded Correlation Function for Spatial Point Patterns.
+In \emph{Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining} (pp. 2177-2188).
+
+Pya, N. and Wood, S.N., 2015.
+Shape constrained additive models. In \emph{Statistics and Computing, 25(3)} (pp. 543-559).
+}
+\seealso{
+\code{\link{LCFcross}} to estimate the colocalization between two types of objects
+in a multitype point pattern.
+}
+\author{
+Evgenia Martynova \email{evg.martynova@gmail.com}
 }

@@ -16,56 +16,149 @@ LCFcross(
 )
 }
 \arguments{
-\item{pp}{The observed point pattern, from which an estimate of the cross-LCF will be computed.
-It must be a multitype point pattern (a marked point pattern whose marks are a factor).}
+\item{pp}{The observed point pattern, from which an estimate of the cross-LCF, \eqn{LCF_{ij}(r)},
+will be computed. It must be a multitype point pattern (a marked point pattern whose marks are a factor).
+See the details of \code{\link[spatstat.explore]{Kcross}}.}
 
-\item{i}{The type (mark value) of the points in pp from which distances are measured.
-Must be a character string. Defaults to the first level of marks(pp).}
+\item{i}{The type (mark value) of the points in \code{pp} from which distances are measured.
+Must be a character string. Defaults to the first level of \code{marks(pp)}.}
 
-\item{j}{The type (mark value) of the points in pp to which distances are measured.
-Must be a character string. Defaults to the second level of marks(pp).}
+\item{j}{The type (mark value) of the points in \code{pp} to which distances are measured.
+Must be a character string. Defaults to the second level of \code{marks(pp)}.}
 
 \item{correction}{Optional. A string containing one of
-the options "none", "border", "bord.modif", "isotropic", "Ripley", "translate",
-"translation", "rigid", "none", "periodic", "good" or "best".
+the options "\code{none}", "\code{border}", "\code{bord.modif}", "\code{isotropic}",
+"\code{Ripley}", "\code{translate}", "\code{translation}", "\code{rigid}",
+"\code{periodic}", "\code{good}" or "\code{best}".
 It specifies the edge correction to be applied. Note that the option "all"
 or providing multiple edge correction methods is not supported due to
-performance reasons. Defaults to "Ripley".}
+performance reasons. Defaults to "\code{Ripley}"/"\code{isotropic}".}
 
-\item{r}{Optional. Vector of values for the argument r at which cross-LCF(r)
+\item{r}{Optional. Vector of values for the argument \eqn{r} at which cross-LCF(r)
 should be evaluated. The values must be in increasing order. Advanced use only.}
 
 \item{dim}{Optional. The dimension of the basis used to represent the smooth term within
-the scam model formula. If not provided, the rule of thumb is used.}
+the scam model formula. If not provided, the rule of thumb is used, i.e.
+\eqn{dim = \sqrt{n}} where \eqn{n} is the total number of points in a point pattern.}
 
-\item{dim_lims}{Optional. The integer vector with 2 values: the lower and
-upper limits of the possible value of dim, c(lower, upper). lower > upper
-is not allowed.}
+\item{dim_lims}{Optional. The integer vector of 2 values: the lower and
+upper limits of the possible value of dim, \code{c(lower, upper)}. \code{lower} > \code{upper}
+is not allowed. Only applied when \code{dim} is not provided and computed with the rule of thumb.
+Clips the computed \eqn{dim} to \eqn{[lower, upper]} interval.}
 
 \item{rmax}{Optional. Maximum desired value of the argument.}
 }
 \value{
-An object of class "lcffv", inherited from fv.object, which can be
-plotted directly using plot.lcffv. Essentially a data frame that contains
-columns
+An object of class "lcffv", inherited from \code{\link[spatstat.explore]{fv.object}}, which can be
+plotted directly using \code{\link{plot.lcffv}}. Essentially a data frame that contains
+columns:
 
-r      the value of the argument r at which cross-LCF(r) is estimated
-theo   the theoretical value of cross-LCF(r) for a marked Poisson process, 0
+\code{r} --     the value of the argument \eqn{r} at which \eqn{LCF(r)} is estimated
 
-And a column with the empirical estimate of cross-LCF(r) obtained from the point pattern
-using the specified edge correction method.
+\code{theo} --   the theoretical value of \eqn{LCF_{ij}(r)} for Poisson process, \eqn{0}
+
+and a column named after the used edge correction method, e.g. "\code{iso}" or "\code{border}",
+with the empirical estimate of \eqn{LCF_{ij}(r)} obtained from the point pattern.
 }
 \description{
 For a multitype point pattern, estimate the cross-LCF which estimates the spatial
-distribution of objects of type j with respect to objects of type i.
+distribution of objects of type \eqn{j} with respect to objects of type \eqn{i}.
+}
+\details{
+This function is variant of the function \code{\link{LCFest}} extended to estimate
+the colocalisation of two types of points in multitype point patterns.
+
+In a multitype point pattern, points can be classified into a finite number types.
+We follow the conventions of the \code{spatstat} package, which represents a multitype pattern
+as a single pattern of points with marks that determine the type of points.
+
+The argument pp must be a marked point pattern (object of class "\code{ppp}") with the mark vector
+\code{pp$marks} of a \code{factor} type.
+
+The "cross-LCF" can be estimated by substituting \eqn{N(r)} (the expected number
+of neighbors within distance \eqn{r} of a typical point) in the formula of LCF with
+\eqn{N_{ij}(r)} - the expected number of points of type \eqn{j} within distance \eqn{r}
+of a typical point of type \eqn{i}.
+
+\deqn{LCF_{ij}(r) =  \begin{cases} 2\exp{ \left(  - \frac{\ln{2}}{2} \frac{r\, N_{ij}'(r)}{N_{ij}(r)} \right)} - 1, \quad N_{ij}(r) > 0  \\ -1, \quad N_{ij}(r) = 0 \end{cases}}
+
+It estimates the degree of clustering of the points of type \eqn{j} around the
+points of type \eqn{i}. If the process that generate points \eqn{i} and \eqn{j} are
+independent, \eqn{LCF_{ij}} is asymptotically \eqn{0}. \eqn{LCF_{ij} > 0} suggest clustering of
+points of type \eqn{j} around the points of type \eqn{i}, while \eqn{LCF_{ij} < 0} suggests dispersion.
 }
 \examples{
 
-# TODO: Expand this
+library(spatstat.random)
+library(spatstat.geom)
 
-library(spatstat.data)
+# This example compares cross-LCF for point patterns
+# with two types of objects and different colocalization
+# of these objects.
 
-lcf_cross <- LCFcross(amacrine, "on", "off")
-plot(lcf_cross)
+# No dependence between positions of points of two types
+# Draw a point pattern from CSR
+pp_rand <- rpoispp(1000)
+# Randomly assign two types of points
+pp_rand <- pp_rand \%mark\% factor(sample(0:1, npoints(pp_rand), replace=TRUE))
+plot(pp_rand)
 
+lcf_rand <- LCFcross(pp_rand, "0", "1")
+
+# Points of type 1 are clustered around points of type 0
+# Simulated using the Matern cluster process
+# and assigning type 0 to parent points
+# and type 1 to offspring.
+clust_rad <- 0.025
+mat_clust <- rMatClust(25, clust_rad, 50,
+                       saveparents = TRUE)
+
+parents <- attr(mat_clust, "parents")
+
+x <- c(parents$x, mat_clust$x)
+y <- c(parents$y, mat_clust$y)
+marks <- factor(c(rep(0, length(parents$x)), rep(1, mat_clust$n)))
+
+pp_attr <- ppp(x, y, marks = marks)
+plot(pp_attr)
+
+lcf_attr <- LCFcross(pp_attr, "0", "1")
+
+# Points of different types do not mix.
+# The points with type 0 occupy the left side of the window
+win1 <- owin(c(0, 0.49), c(0, 1))
+pp1 <- rpoispp(500, win=win1)
+
+# The points with type 1 occupy the right side of the window
+win2 <- owin(c(0.51, 1), c(0, 1))
+pp2 <- rpoispp(500, win=win2)
+
+# Combine them into a mutitype point pattern
+xs <- c(pp1$x, pp2$x)
+ys <- c(pp1$y, pp2$y)
+marks <- factor(c(rep("0", pp1$n), rep("1", pp2$n)))
+
+pp_comp <- ppp(xs, ys, marks = marks, win=owin())
+plot(pp_comp)
+
+lcf_comp <- LCFcross(pp_comp, "0", "1")
+
+# Plot LCF for three point patterns together
+plot(lcf_rand$r, lcf_rand$iso, xlab = "r", ylab = "LCF", type="l", ylim=c(-1, 1), col=4)
+lines(lcf_rand$r, rep(0, nrow(lcf_rand)), lty=2)
+lines(lcf_attr$r, lcf_attr$iso, col=2)
+lines(lcf_comp$r, lcf_comp$iso, col=7)
+legend("bottomright",
+       c("theoretical", "random", "co-occurence", "separation"),
+       col=c(1, 4, 2, 7),
+       lty=c(2, 1, 1, 1))
+
+}
+\references{
+Martynova, E. and Textor, J., 2024, August.
+A Uniformly Bounded Correlation Function for Spatial Point Patterns.
+In \emph{Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining} (pp. 2177-2188).
+}
+\author{
+Evgenia Martynova \email{evg.martynova@gmail.com}
 }

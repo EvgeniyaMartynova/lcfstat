@@ -2,37 +2,100 @@
 #'
 #'Estimates the local correlation function from a point pattern in a window of arbitrary shape.
 #'
-#' @param pp The observed point pattern, from which an estimate of LCF(r) will be computed
-#' or N(r) estimate. In case of the point pattern, it should be an object of class "ppp".
-#' For N(r), a data frame with columns "r" (distance) and "pn" (estimated number of points)
+#' The local correlation function, \eqn{LCF(r)}, is a summary function of spatial statistics which estimates
+#' a degree of clustering or dispersion at distance \eqn{r} in a point process (Martynova, 2024). It is based on
+#' the influential Ripley's \eqn{K}-function, \code{\link[spatstat.explore]{Kest}}, or more precisely, on the
+#' underlying summary function \eqn{N(r)}, the expected number of random points within a distance \eqn{r}
+#' of a typical random point.
+#' The following properties make it possible to interpret LCF as a degree of clustering or dispersion:
+#'
+#' \enumerate{
+#'   \item \eqn{LCF(r)} is limited to the range \eqn{[-1,1]},
+#'   \item \eqn{LCF(r)} is asymptotically \eqn{0} for CSR,
+#'   \item \eqn{LCF(r) = 1} for maximal clustering (e.g. for \eqn{r > r_d}  if all points are concentrated inside the disc with the diameter \eqn{r_d}),
+#'   \item \eqn{LCF(r) = -1} for maximal dispersion (e.g. lattice at \eqn{r} smaller than the distance between nearest neighbor),
+#' }
+#'
+#' The scale of LCF is inspired by the linear correlation coefficient, and highlights the
+#' opposite meaning of clustering and dispersion.
+#' The advantage of the LCF in comparison to other summary functions of spatial statistics is
+#' that it is uniformly bounded, which means that its extreme values \eqn{-1} and \eqn{1} are identical
+#' and attainable for all scales \eqn{r}. Altogether, this makes LCF an attractive metric
+#' for researches who are interested in extracting spatial information in an interpretable way.
+#' As with other \eqn{K}-based spatial statistics, researchers can analyze the entire
+#' function graph of LCF for a single or a few patterns or construct summary measures for joint analysis
+#' of many point patterns, e.g. functon value at a certain distance or the area under the curve.
+#'
+#' Formally, maximal clustering and dispersion can be defined using the the expected number of additional
+#' random points within a distance \eqn{r} of a typical random point, \eqn{N(r)}.
+#'
+#' \itemize{
+#'   \item A point process with \eqn{N(r) = 0} is \emph{maximally dispersed} at distance \eqn{r}.
+#'   \item If \eqn{N(r) > 0} and \eqn{N(r) = N(hr)} for some \eqn{h > 1}, then a point process
+#'   is \emph{maximally clustered at distance} \eqn{r}.
+#' }
+#'
+#' LCF can be estimated as
+#'
+#' \deqn{LCF(r) =  \begin{cases} 2\exp{ \left(  - \frac{\ln{2}}{2} \frac{r\, N'(r)}{N(r)} \right)} - 1, \quad N(r) > 0  \\ -1, \quad N(r) = 0 \end{cases}}
+#'
+#' In this package, we extract the estimate of \eqn{N(r)} using the \code{\link[spatstat.explore]{Kest}}
+#' function from the \code{spatstat} package and obtains its smooth monotonically increasing spline
+#' approximation with \code{\link[scam]{scam}} package (Pya, 2015) to calculate the derivative, \eqn{N'(r)}.
+#'
+#' Importantly, LCF is bounded under the assumption that the estimated \eqn{N(r)} is monotonically
+#' non-decreasing. Although, this is typically the case, there might be some edge cases
+#' when the appropriate edge correction method should be chosen to preserve this property.
+#'
+
+#' @param pp The observed point pattern, from which an estimate of \eqn{LCF(r)} will be computed
+#' or the estimated average number of neighbors of a point \eqn{N(r)}. In case of the point pattern, it should be an object of class "ppp".
+#' For \eqn{N(r)}, a data frame with columns \code{r} (distance) and \code{pn} (estimated number of points) is expected.
 #' @param correction Optional. A string containing one of
-#' the options "none", "border", "bord.modif", "isotropic", "Ripley", "translate",
-#' "translation", "rigid", "none", "periodic", "good" or "best".
+#' the options "\code{none}", "\code{border}", "\code{bord.modif}", "\code{isotropic}",
+#' "\code{Ripley}", "\code{translate}", "\code{translation}", "\code{rigid}",
+#' "\code{periodic}", "\code{good}" or "\code{best}".
 #' It specifies the edge correction to be applied. Note that the option "all"
 #' or providing multiple edge correction methods is not supported due to
-#' performance reasons. Defaults to "Ripley".
-#' @param r Optional. Vector of values for the argument r at which LCF(r)
+#' performance reasons. Defaults to "\code{Ripley}"/"\code{isotropic}".
+#' @param r Optional. Vector of values for the argument \eqn{r} at which \eqn{LCF(r)}
 #' should be evaluated. The values must be in increasing order. Advanced use only.
 #' @param dim Optional. The dimension of the basis used to represent the smooth term within
 #' the scam model formula. If not provided, the rule of thumb is used, i.e.
-#' dim = sqrt(number of points).
-#' @param dim_lims Optional. The integer vector with 2 values: the lower and
-#' upper limits of the possible value of dim, c(lower, upper). lower > upper
-#' is not allowed.
+#' \eqn{dim = \sqrt{n}} where \eqn{n} is the number of points. Must be provided when the estimate
+#' of \eqn{N(r)} is passed to \code{pp}.
+#' @param dim_lims Optional. The integer vector of 2 values: the lower and
+#' upper limits of the possible value of dim, \code{c(lower, upper)}. \code{lower} > \code{upper}
+#' is not allowed. Only applied when \code{dim} is not provided and computed with the rule of thumb.
+#' Clips the computed \eqn{dim} to \eqn{[lower, upper]} interval.
 #' @param rmax Optional. Maximum desired value of the argument.
 #' @param nlarge Optional. Efficiency threshold. If the number of points exceeds
-#' nlarge, then only the border correction will be computed (by default),
-#' using a fast algorithm.
+#' \code{nlarge}, then only the border correction will be computed (by default),
+#' using a fast algorithm. The default is 3000.
 #'
-#' @return An object of class "lcffv", inherited from fv.object, which can be
-#' plotted directly using plot.lcffv. Essentially a data frame that contains
-#' columns
+#' @return An object of class "lcffv", inherited from \code{\link[spatstat.explore]{fv.object}}, which can be
+#' plotted directly using \code{\link{plot.lcffv}}. Essentially a data frame that contains
+#' columns:
 #'
-#' r      the value of the argument r at which LCF(r) is estimated
-#' theo   the theoretical value of LCF(r) for Poisson process, 0
+#' \code{r} --     the value of the argument \eqn{r} at which \eqn{LCF(r)} is estimated
 #'
-#' And a column with the empirical estimate of LCF(r) obtained from the point pattern
-#' using the specified edge correction method.
+#' \code{theo} --   the theoretical value of \eqn{LCF(r)} for Poisson process, \eqn{0}
+#'
+#' and a column named after the used edge correction method, e.g. "\code{iso}" or "\code{border}",
+#' with the empirical estimate of \eqn{LCF(r)} obtained from the point pattern.
+#'
+#' @author Evgenia Martynova \email{evg.martynova@@gmail.com}
+#'
+#' @references Martynova, E. and Textor, J., 2024, August.
+#' A Uniformly Bounded Correlation Function for Spatial Point Patterns.
+#' In \emph{Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining} (pp. 2177-2188).
+#'
+#' @references Pya, N. and Wood, S.N., 2015.
+#' Shape constrained additive models. In \emph{Statistics and Computing, 25(3)} (pp. 543-559).
+#'
+#'@seealso \code{\link{LCFcross}} to estimate the colocalization between two types of objects
+#' in a multitype point pattern.
+#
 #'
 #' @export
 #'
@@ -60,7 +123,7 @@
 #' lcf_disp <- LCFest(hardcore_pp)
 #' plot(lcf_disp, main = "LCF for a point pattern with dispersion")
 #'
-#' # Plot LCF for three different point pattern together
+#' # Plot LCF for three different point patterns together
 #' plot(lcf_rand$r, lcf_rand$iso, type="l", ylim=c(-1, 1), col=4)
 #' lines(lcf_rand$r, rep(0, nrow(lcf_rand)), lty=2)
 #' lines(lcf_clust$r, lcf_clust$iso, col=2)
@@ -78,11 +141,7 @@ LCFest <- function(pp,
                    rmax=NULL,
                    nlarge=3000) {
 
-  # For now override the correction argument and allow only a single character
-  # value due to performance reasons
-
   if (inherits(pp, "ppp")) {
-    # Check the value
     if (!is.character(correction) || length(correction) > 1) {
       rlang::abort(class = "lcf_error_bad_correction",
                    message="'correction' argument has to be a character vector
@@ -124,7 +183,7 @@ LCFest <- function(pp,
                  frame with the point number estimate and colums \"r\" and \"pn\"")
   }
 
-  # Name the column with LCF estimate after the used border correction method
+  # Name the column with LCF estimate after the used edge correction method
   correction_name <- if (exists("k_est")) colnames(k_est)[3] else "empirical"
   lcf_df <- LCF(pn_est_df, r, dim, correction_name)
 
@@ -143,47 +202,140 @@ LCFest <- function(pp,
 #' Multitype LCF (Cross-type)
 #'
 #' For a multitype point pattern, estimate the cross-LCF which estimates the spatial
-#' distribution of objects of type j with respect to objects of type i.
+#' distribution of objects of type \eqn{j} with respect to objects of type \eqn{i}.
 #'
-#' @param pp The observed point pattern, from which an estimate of the cross-LCF will be computed.
-#' It must be a multitype point pattern (a marked point pattern whose marks are a factor).
-#' @param i The type (mark value) of the points in pp from which distances are measured.
-#' Must be a character string. Defaults to the first level of marks(pp).
-#' @param j The type (mark value) of the points in pp to which distances are measured.
-#' Must be a character string. Defaults to the second level of marks(pp).
+#' This function is variant of the function \code{\link{LCFest}} extended to estimate
+#' the colocalisation of two types of points in multitype point patterns.
+#'
+#' In a multitype point pattern, points can be classified into a finite number types.
+#' We follow the conventions of the \code{spatstat} package, which represents a multitype pattern
+#' as a single pattern of points with marks that determine the type of points.
+#'
+#' The argument pp must be a marked point pattern (object of class "\code{ppp}") with the mark vector
+#' \code{pp$marks} of a \code{factor} type.
+#'
+#' The "cross-LCF" can be estimated by substituting \eqn{N(r)} (the expected number
+#' of neighbors within distance \eqn{r} of a typical point) in the formula of LCF with
+#' \eqn{N_{ij}(r)} - the expected number of points of type \eqn{j} within distance \eqn{r}
+#' of a typical point of type \eqn{i}.
+#'
+#' \deqn{LCF_{ij}(r) =  \begin{cases} 2\exp{ \left(  - \frac{\ln{2}}{2} \frac{r\, N_{ij}'(r)}{N_{ij}(r)} \right)} - 1, \quad N_{ij}(r) > 0  \\ -1, \quad N_{ij}(r) = 0 \end{cases}}
+#'
+#' It estimates the degree of clustering of the points of type \eqn{j} around the
+#' points of type \eqn{i}. If the process that generate points \eqn{i} and \eqn{j} are
+#' independent, \eqn{LCF_{ij}} is asymptotically \eqn{0}. \eqn{LCF_{ij} > 0} suggest clustering of
+#' points of type \eqn{j} around the points of type \eqn{i}, while \eqn{LCF_{ij} < 0} suggests dispersion.
+#'
+#' @param pp The observed point pattern, from which an estimate of the cross-LCF, \eqn{LCF_{ij}(r)},
+#' will be computed. It must be a multitype point pattern (a marked point pattern whose marks are a factor).
+#' See the details of \code{\link[spatstat.explore]{Kcross}}.
+#' @param i The type (mark value) of the points in \code{pp} from which distances are measured.
+#' Must be a character string. Defaults to the first level of \code{marks(pp)}.
+#' @param j The type (mark value) of the points in \code{pp} to which distances are measured.
+#' Must be a character string. Defaults to the second level of \code{marks(pp)}.
 #' @param correction Optional. A string containing one of
-#' the options "none", "border", "bord.modif", "isotropic", "Ripley", "translate",
-#' "translation", "rigid", "none", "periodic", "good" or "best".
+#' the options "\code{none}", "\code{border}", "\code{bord.modif}", "\code{isotropic}",
+#' "\code{Ripley}", "\code{translate}", "\code{translation}", "\code{rigid}",
+#' "\code{periodic}", "\code{good}" or "\code{best}".
 #' It specifies the edge correction to be applied. Note that the option "all"
 #' or providing multiple edge correction methods is not supported due to
-#' performance reasons. Defaults to "Ripley".
-#' @param r Optional. Vector of values for the argument r at which cross-LCF(r)
+#' performance reasons. Defaults to "\code{Ripley}"/"\code{isotropic}".
+#' @param r Optional. Vector of values for the argument \eqn{r} at which cross-LCF(r)
 #' should be evaluated. The values must be in increasing order. Advanced use only.
 #' @param dim Optional. The dimension of the basis used to represent the smooth term within
-#' the scam model formula. If not provided, the rule of thumb is used.
-#' @param dim_lims Optional. The integer vector with 2 values: the lower and
-#' upper limits of the possible value of dim, c(lower, upper). lower > upper
-#' is not allowed.
+#' the scam model formula. If not provided, the rule of thumb is used, i.e.
+#' \eqn{dim = \sqrt{n}} where \eqn{n} is the total number of points in a point pattern.
+#' @param dim_lims Optional. The integer vector of 2 values: the lower and
+#' upper limits of the possible value of dim, \code{c(lower, upper)}. \code{lower} > \code{upper}
+#' is not allowed. Only applied when \code{dim} is not provided and computed with the rule of thumb.
+#' Clips the computed \eqn{dim} to \eqn{[lower, upper]} interval.
 #' @param rmax Optional. Maximum desired value of the argument.
 #'
-#' @return An object of class "lcffv", inherited from fv.object, which can be
-#' plotted directly using plot.lcffv. Essentially a data frame that contains
-#' columns
+#' @return An object of class "lcffv", inherited from \code{\link[spatstat.explore]{fv.object}}, which can be
+#' plotted directly using \code{\link{plot.lcffv}}. Essentially a data frame that contains
+#' columns:
 #'
-#' r      the value of the argument r at which cross-LCF(r) is estimated
-#' theo   the theoretical value of cross-LCF(r) for a marked Poisson process, 0
+#' \code{r} --     the value of the argument \eqn{r} at which \eqn{LCF(r)} is estimated
 #'
-#' And a column with the empirical estimate of cross-LCF(r) obtained from the point pattern
-#' using the specified edge correction method.
+#' \code{theo} --   the theoretical value of \eqn{LCF_{ij}(r)} for Poisson process, \eqn{0}
+#'
+#' and a column named after the used edge correction method, e.g. "\code{iso}" or "\code{border}",
+#' with the empirical estimate of \eqn{LCF_{ij}(r)} obtained from the point pattern.
+#'
+#' @author Evgenia Martynova \email{evg.martynova@@gmail.com}
+#'
+#' @references Martynova, E. and Textor, J., 2024, August.
+#' A Uniformly Bounded Correlation Function for Spatial Point Patterns.
+#' In \emph{Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining} (pp. 2177-2188).
+#'
 #'
 #' @export
 #'
 #' @examples
 #'
-#' library(spatstat.data)
+#' library(spatstat.random)
+#' library(spatstat.geom)
 #'
-#' lcf_cross <- LCFcross(amacrine, "on", "off")
-#' plot(lcf_cross)
+#' # This example compares cross-LCF for point patterns
+#' # with two types of objects and different colocalization
+#' # of these objects.
+#'
+#' # No dependence between positions of points of two types
+#' # Draw a point pattern from CSR
+#' pp_rand <- rpoispp(1000)
+#' # Randomly assign two types of points
+#' pp_rand <- pp_rand %mark% factor(sample(0:1, npoints(pp_rand), replace=TRUE))
+#' plot(pp_rand)
+#'
+#' lcf_rand <- LCFcross(pp_rand, "0", "1")
+#'
+#' # Points of type 1 are clustered around points of type 0
+#' # Simulated using the Matern cluster process
+#' # and assigning type 0 to parent points
+#' # and type 1 to offspring.
+#' clust_rad <- 0.025
+#' mat_clust <- rMatClust(25, clust_rad, 50,
+#'                        saveparents = TRUE)
+#'
+#' parents <- attr(mat_clust, "parents")
+#'
+#' x <- c(parents$x, mat_clust$x)
+#' y <- c(parents$y, mat_clust$y)
+#' marks <- factor(c(rep(0, length(parents$x)), rep(1, mat_clust$n)))
+#'
+#' pp_attr <- ppp(x, y, marks = marks)
+#' plot(pp_attr)
+#'
+#' lcf_attr <- LCFcross(pp_attr, "0", "1")
+#'
+#' # Points of different types do not mix.
+#' # The points with type 0 occupy the left side of the window
+#' win1 <- owin(c(0, 0.49), c(0, 1))
+#' pp1 <- rpoispp(500, win=win1)
+#'
+#' # The points with type 1 occupy the right side of the window
+#' win2 <- owin(c(0.51, 1), c(0, 1))
+#' pp2 <- rpoispp(500, win=win2)
+#'
+#' # Combine them into a mutitype point pattern
+#' xs <- c(pp1$x, pp2$x)
+#' ys <- c(pp1$y, pp2$y)
+#' marks <- factor(c(rep("0", pp1$n), rep("1", pp2$n)))
+#'
+#' pp_comp <- ppp(xs, ys, marks = marks, win=owin())
+#' plot(pp_comp)
+#'
+#' lcf_comp <- LCFcross(pp_comp, "0", "1")
+#'
+#' # Plot LCF for three point patterns together
+#' plot(lcf_rand$r, lcf_rand$iso, xlab = "r", ylab = "LCF", type="l", ylim=c(-1, 1), col=4)
+#' lines(lcf_rand$r, rep(0, nrow(lcf_rand)), lty=2)
+#' lines(lcf_attr$r, lcf_attr$iso, col=2)
+#' lines(lcf_comp$r, lcf_comp$iso, col=7)
+#' legend("bottomright",
+#'        c("theoretical", "random", "co-occurence", "separation"),
+#'        col=c(1, 4, 2, 7),
+#'        lty=c(2, 1, 1, 1))
 #'
 LCFcross <- function(pp,
                      i,
@@ -253,9 +405,7 @@ LCFcross <- function(pp,
                           pn=pn)
 
   if (is.null(dim)) {
-    n_i <- pp[pp$marks == i]$n
-    n_geom <- round(sqrt(n_i * n_j))
-    dim <- choose_basis_dim(n_geom, dim_lims=dim_lims)
+    dim <- choose_basis_dim(pp$n, dim_lims=dim_lims)
   }
 
   # Name the column with LCF estimate after the used border correction method
@@ -280,21 +430,28 @@ LCFcross <- function(pp,
 #' LCF estimate
 #'
 #' Estimates LCF by using smooth approximation of the empirical estimate of
-#' the number of points, N(r), and computing its derivative
+#' the number of points, \eqn{N(r)}, and computing its derivative.
 #'
-#' @param pn_est_df The data frame with estimated number of points at distance r
+#' @param pn_est_df The data frame with estimated number of points at distance \eqn{r}
 #' that will be used to estimate LCF. Should have two columns
-#' "r" (distance) and "pn" (estimated number of points)
-#' @param r Optional. Optional. Vector of values for the argument r at which LCF(r)
+#' "\code{r}" (distance) and "\code{pn}" (estimated number of points)
+#' @param r Optional. Optional. Vector of values for the argument \eqn{r} at which \eqn{LCF(r)}
 #' should be evaluated. The values must be in increasing order. Advanced use only.
 #' @param dim The dimension of the basis used to represent the smooth term within
 #' the scam model formula. If not provided, the rule of thumb is used, i.e.
-#' dim = sqrt(number of points).
+#' \eqn{dim = \sqrt{n}} where \eqn{n} is the number of points.
 #' @param est_name The name of the column that contains the LCF's empirical estimate.
 #'
-#' @return A data frame with 3 columns: r contains distances, theo contains LCF's
-#' theoretical value at the corresponding distance and columns names with est_name
-#' contains the empirical estimate of the function
+#' @return A data frame with 3 columns:
+#'
+#' \code{r} --     the value of the argument \eqn{r} at which \eqn{LCF(r)} is estimated
+#'
+#' \code{theo} --   the theoretical value of \eqn{LCF_{ij}(r)} for Poisson process, \eqn{0}
+#'
+#' and a column named after the used edge correction method, e.g. "\code{iso}" or "\code{border}",
+#' with the empirical estimate of \eqn{LCF_{ij}(r)} obtained from the point pattern.
+#'
+#' @noRd
 LCF <- function(pn_est_df, r=NULL, dim, est_name) {
   # If r is not specified, return the result for all r in pn_est_df
   if (is.null(r)) {
@@ -331,12 +488,12 @@ LCF <- function(pn_est_df, r=NULL, dim, est_name) {
     pn <- stats::predict(model, newdata=list(r=r_def))
     pn_deriv <- single_mpi_derivative(model, data=list(r=r_def))
 
-    # Workaround when getting a small negative derivative (TODO: is it needed now when derivative is analytical?)
-    pn_deriv <- dplyr::if_else(pn_deriv >= 0, pn_deriv, 0)
+    # Workaround when getting a small negative derivative
+    pn_deriv[pn_deriv < 0] <- 0
 
-    lcf <- dplyr::if_else(pn > 0 & pn_deriv >= 0,
-                          compute_lcf(r_def, pn, pn_deriv),
-                          -1)
+    lcf <- ifelse(pn > 0 & pn_deriv >= 0,
+                  compute_lcf(r_def, pn, pn_deriv),
+                  -1)
 
     num_ll_pad <- r_li - 1
     num_na_pad <- length(r) - r_hi
@@ -365,12 +522,14 @@ LCF <- function(pn_est_df, r=NULL, dim, est_name) {
 #' Derivative of a scam model with a single MPI term
 #'
 #' @param model A scam model with a single monotone increasing P-spline (MPI)
-#' term
+#' term.
 #' @param data A data frame containing the values of the named covariates
 #' at which the smooth term is to be evaluated.
 #'
 #' @return A vector that contains the derivative of the given scam model at
-#' the valuse provided with the data parameter
+#' the value provided with the data parameter
+#'
+#' @noRd
 single_mpi_derivative <- function(model, data) {
 
   # check that it is a scam objects
@@ -421,13 +580,15 @@ single_mpi_derivative <- function(model, data) {
 #' The number of B-splines to use in the scam model
 #'
 #' @param sample_size Number of points in a point pattern
-#' @param dim_lims Optional. The integer vector with 2 values: the lower and
-#' upper limits of the possible value of dim, c(lower, upper). lower > upper
+#' @param dim_lims Optional. The integer vector of 2 values: the lower and
+#' upper limits of the possible value of dim, \code{c(lower, upper)}. \code{lower} > \code{upper}
 #' is not allowed.
 #'
 #' @return An integer value that represents the number of B-splines to use
-#' in a scam model. The rule of thumb dim = sqrt(sample_size) is used and
-#' if dim_lims is provided it is used to clip the value
+#' in a scam model. The rule of thumb \enq{dim = \sqrt(sample\_size)} is used and
+#' if \code{dim\_lims} is provided it is used to clip the value
+#'
+#' @noRd
 choose_basis_dim <- function(sample_size, dim_lims=NULL) {
 
   if (length(sample_size) > 1 || sample_size < 0 || sample_size %% 1 != 0) {
@@ -457,16 +618,18 @@ choose_basis_dim <- function(sample_size, dim_lims=NULL) {
 
 #' The LCF value computation
 #'
-#' @param r A vector of distances
-#' @param pn A vector of estimated expected number of points within a distance r
+#' @param r A vector of distances.
+#' @param pn A vector of estimated expected number of points within a distance \eqn{r}.
 #' @param pn_deriv A vector of estimated derivative of the expected number of points
-#' within a distance r
+#' within a distance \eqn{r}.
 #' @param lcf_lims Optional. The double vector with 2 values: the lower and
-#' upper limits of the LCF, c(lower, upper). The lower value corresponds to the LCF value
+#' upper limits of the LCF, \code{c(lower, upper)}. The lower value corresponds to the LCF value
 #' for maximal dispersion, the upper to the LCF value for maximal clustering.
-#' lower > upper is not allowed.
+#' \code{lower} > \code{upper} is not allowed.
 #'
 #' @returns A vector with LCF estimate at r
+#'
+#' @noRd
 compute_lcf <- function(r, pn, pn_deriv, lcf_lims=c(-1, 1)) {
 
   if (length(lcf_lims) != 2 || !is.numeric(lcf_lims)) {
@@ -507,15 +670,26 @@ get_r_arg <- function(r) {
 
 #' Plot Function Value for LCF
 #'
+#' Plot method for the class "lcffv".
+#'
+#' Calls \code{\link[spatstat.explore]{plot.fv}} from the \code{spatstat.explore}
+#' package and sets y-axis to the range of LCF, \eqn{[-1,1]}, to aid visual interpretation.
+#' See \code{\link[spatstat.explore]{plot.fv}} for the information about the plotting parameters.
+#'
 #' @param x An object of the class "lcffv" that contains the variables to be
 #' plotted.
 #' @param ylim (optional) range of y axis. Default is set to the lower and
 #' upper limits of the LCF.
 #' @param main (optional) A title of the plot.
-#' @param ... Extra arguments passed to the spatstat.explore::plot.fv
+#' @param ... Extra arguments passed to the \code{\link[spatstat.explore]{plot.fv}}.
 #'
 #' @return Invisible: either NULL, or a data frame giving the meaning of the
 #' different line types and colours.
+#'
+#' @author Evgenia Martynova \email{evg.martynova@@gmail.com}
+#'
+#' @seealso \code{\link{LCFest}}, \code{\link{LCFcross}}
+#'
 #' @export
 #' @export plot.lcffv
 #'
